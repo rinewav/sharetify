@@ -73,7 +73,7 @@ import {
  * そうすることで CORS も Range もこちら側で扱える。
  */
 
-const VERSION = "0.1.0";
+const VERSION = "0.0.1";
 
 /**
  * 引き合わせを頼む先。
