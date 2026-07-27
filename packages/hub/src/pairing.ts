@@ -37,6 +37,21 @@ const hostsById = new Map<string, Host>();
 const hostsByCode = new Map<string, Host>();
 const guestsById = new Map<string, Guest>();
 
+/**
+ * 誰がその合言葉を使っていたか。
+ *
+ * PC を閉じて開き直すと、同じ合言葉を名乗り直してくる。
+ * そのとき、前に使っていたのと同じ相手かどうかを見分けたい。
+ * 見分けないと、別の PC が先に名乗って横取りできてしまう。
+ *
+ * 覚えているのは名乗りの印だけで、誰が何を聴いているかは持たない。
+ */
+const codeOwners = new Map<string, string>();
+
+/** 名乗りの印を保つ日数。長く使っていない合言葉は手放す。 */
+const OWNER_TTL_MS = 90 * 24 * 60 * 60_000;
+const ownerSeenAt = new Map<string, number>();
+
 /** 紛らわしい文字を外した英数字。電話越しに読み上げても取り違えない。 */
 const CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 
@@ -60,6 +75,16 @@ function dropExpired(): void {
     if (host.expiresAt < now && host.guestIds.size === 0) {
       hostsByCode.delete(code);
     }
+  }
+}
+
+/** 長く使われていない名乗りの印を手放す。 */
+function dropStaleOwners(): void {
+  const now = Date.now();
+  for (const [code, seenAt] of ownerSeenAt) {
+    if (now - seenAt < OWNER_TTL_MS) continue;
+    ownerSeenAt.delete(code);
+    codeOwners.delete(code);
   }
 }
 
@@ -92,12 +117,31 @@ export function handleHostMessage(hostId: string, raw: string): void {
   switch (message.type) {
     case "host:register": {
       dropExpired();
+      dropStaleOwners();
       if (host.code) hostsByCode.delete(host.code);
 
-      // 一度知らせた合言葉は、空いていれば使い続ける。
-      // 再起動のたびに変わると、スマートフォン側の登録が無駄になる。
+      /*
+       * 一度知らせた合言葉は、使い続けられるようにする。
+       * 閉じて開くたびに変わると、スマホ側の覚えが無駄になる。
+       *
+       * ただし誰でも名乗れてはいけない。前に使っていた相手だけが
+       * 名乗り直せるよう、名乗りの印を照らし合わせる。
+       */
       const wanted = message.previousCode?.toUpperCase();
-      const code = wanted && !hostsByCode.has(wanted) ? wanted : generateCode();
+      const identity = message.identity;
+
+      const claimable =
+        wanted !== undefined &&
+        !hostsByCode.has(wanted) &&
+        // 誰のものでもないか、前と同じ相手なら名乗れる。
+        (!codeOwners.has(wanted) || codeOwners.get(wanted) === identity);
+
+      const code = claimable ? wanted : generateCode();
+
+      if (identity) {
+        codeOwners.set(code, identity);
+        ownerSeenAt.set(code, Date.now());
+      }
 
       host.code = code;
       host.label = message.label;

@@ -24,8 +24,14 @@ export const PAIR_ROUTE = "/pair";
 
 /** PC 側 → 中央 */
 export type HostMessage =
-  /** 名乗り出て合言葉をもらう。前回の合言葉があれば引き継ぐ。 */
-  | { type: "host:register"; previousCode?: string; label?: string }
+  /**
+   * 名乗り出て合言葉をもらう。前回の合言葉があれば引き継ぐ。
+   *
+   * `identity` は、その合言葉を前に使っていたのと同じ相手かを見分けるための印。
+   * これが無いと、別の PC が先に名乗って横取りできてしまう。
+   * 中央はこの印を照らし合わせるだけで、誰が何を聴いているかは知らない。
+   */
+  | { type: "host:register"; previousCode?: string; identity?: string; label?: string }
   /** 接続情報の受け渡し。中身は覗かず、そのまま相手へ渡される。 */
   | { type: "host:signal"; guestId: string; payload: SignalPayload };
 

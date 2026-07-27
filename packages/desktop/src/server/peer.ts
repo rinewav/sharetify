@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
 import nodeDataChannel from "node-datachannel";
 import WebSocket from "ws";
 import type { DataChannel, PeerConnection } from "node-datachannel";
@@ -39,6 +42,61 @@ import {
 
 const STUN_SERVERS = ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"];
 
+/**
+ * 一度決まった合言葉は、ここに残しておく。
+ *
+ * 覚えていないと、閉じて開くたびに新しいものになる。
+ * スマホ側は前のものを覚えているので、そのたびに繋がらなくなり、
+ * 入れ直してもらうことになる。
+ */
+const CODE_PATH = join(homedir(), ".sharetify", "pair-code.txt");
+
+/**
+ * この PC を表す印。
+ *
+ * 前に使っていたのと同じ相手かどうかを、中央が見分けるために使う。
+ * これが無いと、別の PC が先に名乗って合言葉を横取りできてしまう。
+ * ここでしか作らず、外へは中央に渡すだけ。
+ */
+const IDENTITY_PATH = join(homedir(), ".sharetify", "identity.txt");
+
+function loadOrCreateIdentity(): string {
+  try {
+    const saved = readFileSync(IDENTITY_PATH, "utf8").trim();
+    if (saved.length >= 16) return saved;
+  } catch {
+    // 無ければ作る。
+  }
+
+  const identity = randomUUID();
+  try {
+    mkdirSync(dirname(IDENTITY_PATH), { recursive: true });
+    writeFileSync(IDENTITY_PATH, identity, "utf8");
+  } catch {
+    // 残せなくても、その場では使える。次に開くと合言葉が変わるだけ。
+  }
+  return identity;
+}
+
+function loadSavedCode(): string | null {
+  try {
+    const saved = readFileSync(CODE_PATH, "utf8").trim().toUpperCase();
+    // 形が違うものは使わない。壊れた控えに引きずられない。
+    return /^[A-Z0-9]{6}$/.test(saved) ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveCode(code: string): void {
+  try {
+    mkdirSync(dirname(CODE_PATH), { recursive: true });
+    writeFileSync(CODE_PATH, code, "utf8");
+  } catch {
+    // 残せなくても、その場では使える。次に開くと新しくなるだけ。
+  }
+}
+
 /** 送信が詰まりはじめる目安。これを超えたら流し込むのを一旦止める。 */
 const BACKPRESSURE_BYTES = 1024 * 1024;
 
@@ -60,7 +118,10 @@ interface GuestLink {
 export class PeerHost {
   private socket: WebSocket | null = null;
   private readonly guests = new Map<string, GuestLink>();
-  private code: string | null = null;
+  /** 前に決まったものを引き継ぐ。閉じて開いても同じ合言葉で繋がる。 */
+  private code: string | null = loadSavedCode();
+  /** 同じ相手だと中央に示すための印。 */
+  private readonly identity = loadOrCreateIdentity();
   private closed = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -107,6 +168,7 @@ export class PeerHost {
       this.send({
         type: "host:register",
         previousCode: this.code ?? undefined,
+        identity: this.identity,
         label: this.options.label,
       });
     });
@@ -157,6 +219,8 @@ export class PeerHost {
     switch (event.type) {
       case "host:registered":
         this.code = event.code;
+        // 次に開いたときも同じものを名乗れるよう残す。
+        saveCode(event.code);
         this.options.onCode?.(event.code, event.expiresAt);
         return;
 
