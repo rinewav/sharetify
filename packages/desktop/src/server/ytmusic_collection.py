@@ -72,25 +72,35 @@ def fetch_playlist(client, playlist_id: str) -> dict:
     }
 
 
-def to_release(entry: dict, kind_hint: str | None = None) -> dict | None:
+def to_release(
+    entry: dict, kind_hint: str | None = None, fallback_artist: str | None = None
+) -> dict | None:
     """アルバム・シングル・EP を並べるための見出し。"""
     browse_id = entry.get("browseId")
     title = entry.get("title")
     if not browse_id or not title:
         return None
 
+    # ある人のページの中では、誰の作品かは自明なので入っていないことがある。
+    # そのまま出すと「不明」と表示されてしまうので、開いている本人の名前で補う。
+    artist = join_artists(entry)
+    if artist == "不明" and fallback_artist:
+        artist = fallback_artist
+
     return {
         "id": browse_id,
         "playlistId": entry.get("audioPlaylistId") or entry.get("playlistId"),
         "title": title,
-        "artist": join_artists(entry),
+        "artist": artist,
         "year": entry.get("year"),
         "kind": entry.get("type") or kind_hint,
         "artworkUrl": pick_thumbnail(entry.get("thumbnails")),
     }
 
 
-def collect_releases(client, data: dict, channel_id: str, key: str, hint: str) -> list[dict]:
+def collect_releases(
+    client, data: dict, channel_id: str, key: str, hint: str, artist_name: str | None = None
+) -> list[dict]:
     """
     まとまりを集める。
 
@@ -110,7 +120,7 @@ def collect_releases(client, data: dict, channel_id: str, key: str, hint: str) -
         except Exception:
             pass
 
-    return [r for r in (to_release(e, hint) for e in results) if r is not None]
+    return [r for r in (to_release(e, hint, artist_name) for e in results) if r is not None]
 
 
 def fetch_artist(client, browse_id: str) -> dict:
@@ -161,8 +171,8 @@ def fetch_artist(client, browse_id: str) -> dict:
         "description": data.get("description"),
         "artworkUrl": artwork,
         "tracks": tracks,
-        "albums": collect_releases(client, data, channel_id, "albums", "Album"),
-        "singles": collect_releases(client, data, channel_id, "singles", "Single"),
+        "albums": collect_releases(client, data, channel_id, "albums", "Album", title),
+        "singles": collect_releases(client, data, channel_id, "singles", "Single", title),
         "related": related,
     }
 
