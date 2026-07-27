@@ -39,7 +39,7 @@ export default function App() {
   const [addingTrack, setAddingTrack] = useState<Track | null>(null);
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
 
-  const sessionConnected = useSession((s) => s.connected);
+  const inSession = useSession((s) => s.inSession);
   const playerError = usePlayer((s) => s.error);
   const { user, playlistById, error: libraryError, refresh } = useLibrary();
 
@@ -81,7 +81,7 @@ export default function App() {
     });
   };
 
-  const panelOpen = sessionPanelOpen || sessionConnected;
+  const panelOpen = sessionPanelOpen || inSession;
   const nodeOnline = health?.ok === true;
 
   /** 曲の情報からアルバムやアーティストのページへ移る。 */

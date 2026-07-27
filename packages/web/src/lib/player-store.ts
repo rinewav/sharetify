@@ -26,6 +26,26 @@ export function attachBackend(next: PlaybackBackend): void {
   backend = next;
 }
 
+/**
+ * 一緒に聴いている場へ操作を流す口。
+ *
+ * 参加していないときは何も起きない。ここを通しておかないと、
+ * ホストが動かしても他の人には伝わらない。
+ */
+type SessionAction =
+  | { kind: "play" }
+  | { kind: "pause" }
+  | { kind: "seek"; positionMs: number }
+  | { kind: "next" }
+  | { kind: "prev" }
+  | { kind: "setQueue"; tracks: Track[]; startIndex: number };
+
+let broadcast: ((action: SessionAction) => void) | null = null;
+
+export function attachSessionBridge(next: (action: SessionAction) => void): void {
+  broadcast = next;
+}
+
 interface PlayerState {
   queue: Track[];
   index: number;
@@ -126,7 +146,11 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       set({ index: nextIndex, positionMs: 0, loadedDurationMs: 0, error: null });
     } else if (repeat === "all") {
       set({ index: 0, positionMs: 0, loadedDurationMs: 0, error: null });
+    } else {
+      return;
     }
+    // 繋いで次へ移った分も場に伝える。伝えないと相手だけ前の曲に残る。
+    broadcast?.({ kind: "next" });
   },
 
   playQueue: (tracks, startIndex) => {
@@ -143,6 +167,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       shuffle: false,
     });
     backend?.play();
+    broadcast?.({ kind: "setQueue", tracks, startIndex: index });
   },
 
   playTrack: (track) => {
@@ -164,19 +189,32 @@ export const usePlayer = create<PlayerState>((set, get) => ({
 
   playNext: (track) => {
     const { queue, index } = get();
-    if (queue.length === 0) {
+    const playing = queue[index];
+    if (!playing) {
       get().playQueue([track], 0);
       return;
     }
-    // 同じ曲が並びに残っていても、差し込んだ位置を優先させる。
+
+    /*
+     * 同じ曲が他の場所にあれば取り除いてから差し込む。
+     *
+     * 取り除くと並びが前へ詰まるので、いま鳴っている曲の位置も測り直す。
+     * ここを元の番号のままにすると、指す先がずれて再生中の表示が消える。
+     */
     const without = queue.filter((t, i) => i === index || t.id !== track.id);
-    const at = without.findIndex((_, i) => i === index) + 1;
-    set({ queue: [...without.slice(0, at), track, ...without.slice(at)] });
+    const playingAt = without.indexOf(playing);
+    const at = playingAt + 1;
+
+    set({
+      queue: [...without.slice(0, at), track, ...without.slice(at)],
+      index: playingAt,
+    });
   },
 
   enqueue: (track) => {
-    const { queue } = get();
-    if (queue.length === 0) {
+    const { queue, index } = get();
+    const playing = queue[index];
+    if (!playing) {
       get().playQueue([track], 0);
       return;
     }
@@ -185,13 +223,19 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   },
 
   toggle: () => {
-    if (get().playing) backend?.pause();
-    else backend?.play();
+    if (get().playing) {
+      backend?.pause();
+      broadcast?.({ kind: "pause" });
+    } else {
+      backend?.play();
+      broadcast?.({ kind: "play" });
+    }
   },
 
   next: () => {
     const { queue, index, repeat } = get();
     if (queue.length === 0) return;
+    broadcast?.({ kind: "next" });
 
     if (repeat === "one") {
       set({ positionMs: 0 });
@@ -217,6 +261,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   },
 
   prev: () => {
+    broadcast?.({ kind: "prev" });
     const { index, positionMs } = get();
     // 3 秒以上進んでいたら曲を戻さず頭出しにする。よくある挙動に合わせる。
     if (positionMs > 3000 || index === 0) {
@@ -232,6 +277,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     const next = Math.max(0, positionMs);
     set({ positionMs: next });
     backend?.seek(next);
+    broadcast?.({ kind: "seek", positionMs: next });
   },
 
   setVolume: (volume) => {

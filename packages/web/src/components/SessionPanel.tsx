@@ -17,7 +17,7 @@ interface Props {
  * 一人だけ無音になったときに原因が分からない。
  */
 export function SessionPanel({ onClose, fullWidth = false }: Props) {
-  const { participants, connected, driftMs, roundTripMs, leaveSession } = useSession();
+  const { participants, inSession, driftMs, roundTripMs, leaveSession } = useSession();
   const track = usePlayer((s) => s.current());
   const waiting = participants.filter((p) => !p.ready);
 
@@ -29,7 +29,7 @@ export function SessionPanel({ onClose, fullWidth = false }: Props) {
     >
       <header className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2">
-          <Radio className={`size-4 ${connected ? "text-accent" : "text-ink-faint"}`} />
+          <Radio className={`size-4 ${inSession ? "text-accent" : "text-ink-faint"}`} />
           <span className="text-sm font-semibold">一緒に聴く</span>
         </div>
         <button
@@ -42,7 +42,7 @@ export function SessionPanel({ onClose, fullWidth = false }: Props) {
         </button>
       </header>
 
-      {!connected ? (
+      {!inSession ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
           <p className="text-sm text-ink-muted">
             グループを選ぶと、友だちと同じ位置で同時に再生できます。

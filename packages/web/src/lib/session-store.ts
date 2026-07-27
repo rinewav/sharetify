@@ -12,7 +12,7 @@ import {
 } from "@musicshare/shared";
 import { hubCreateSession, hubListSessions, storedToken } from "./hub-client.js";
 import { useLibrary } from "./library-store.js";
-import { usePlayer } from "./player-store.js";
+import { attachSessionBridge, usePlayer } from "./player-store.js";
 
 /**
  * 同時リスニング。
@@ -31,7 +31,13 @@ export interface Participant {
 }
 
 interface SessionState {
+  /** 中央との経路が開いているか。参加しているかとは別。 */
   connected: boolean;
+  /**
+   * いま一緒に聴いているか。
+   * 経路が開いているだけでは参加したことにならないので、分けて持つ。
+   */
+  inSession: boolean;
   session: ListeningSession | null;
   participants: Participant[];
   /** hub の時計と自分の時計のズレ (ミリ秒)。 */
@@ -46,6 +52,8 @@ interface SessionState {
   joinSession: (sessionId: string) => void;
   leaveSession: () => void;
   control: (action: SessionControl) => void;
+  /** ホストの操作を場に流す。参加していないときは何もしない。 */
+  broadcast: (action: SessionControl) => void;
   reportReadiness: (trackId: string, ready: boolean, reason?: string) => void;
   /** 集まりの中で始める。既に誰かが始めていればそこへ入る。 */
   startForGroup: (groupId: string) => Promise<void>;
@@ -55,8 +63,32 @@ let socket: WebSocket | null = null;
 let pingTimer: ReturnType<typeof setInterval> | null = null;
 let driftTimer: ReturnType<typeof setInterval> | null = null;
 
+/**
+ * いま動かしているのが「相手に合わせるため」かどうか。
+ *
+ * 追随のための操作をそのまま送り返すと、往復し続けて止まらなくなる。
+ * この間だけ送信を止める。
+ */
+let applyingRemote = false;
+
+function applyRemotely(action: () => void): void {
+  applyingRemote = true;
+  try {
+    action();
+  } finally {
+    applyingRemote = false;
+  }
+}
+
+/*
+ * 再生の操作を場へ流す口を、こちら側から差し込む。
+ * 再生を司る側は「場」を知らないままでいられる。
+ */
+attachSessionBridge((action) => useSession.getState().broadcast(action));
+
 export const useSession = create<SessionState>((set, get) => ({
   connected: false,
+  inSession: false,
   session: null,
   participants: [],
   clockOffsetMs: 0,
@@ -107,7 +139,7 @@ export const useSession = create<SessionState>((set, get) => ({
     clearTimers();
     socket?.close();
     socket = null;
-    set({ connected: false, session: null, participants: [] });
+    set({ connected: false, inSession: false, session: null, participants: [] });
     usePlayer.getState().setSessionRole(false, false);
   },
 
@@ -115,7 +147,8 @@ export const useSession = create<SessionState>((set, get) => ({
 
   leaveSession: () => {
     sendMessage({ type: "session:leave" });
-    set({ session: null, participants: [] });
+    // 参加をやめても経路は開けておく。すぐ入り直せるように。
+    set({ inSession: false, session: null, participants: [], driftMs: 0 });
     usePlayer.getState().setSessionRole(false, false);
   },
 
@@ -123,6 +156,19 @@ export const useSession = create<SessionState>((set, get) => ({
 
   reportReadiness: (trackId, ready, reason) =>
     sendMessage({ type: "session:readiness", trackId, ready, reason }),
+
+  /**
+   * ホストの操作を場に流す。
+   *
+   * 自分で鳴らすだけでは他の人に伝わらない。逆に、追随で動いた分を
+   * 送り返すと往復が止まらなくなるので、そのときは黙っている。
+   */
+  broadcast: (action) => {
+    if (applyingRemote) return;
+    const { inSession, session, myUserId } = get();
+    if (!inSession || !session || session.hostId !== myUserId) return;
+    sendMessage({ type: "session:control", action });
+  },
 
   startForGroup: async (groupId) => {
     const token = storedToken();
@@ -190,10 +236,17 @@ function handleServerMessage(message: ServerMessage, get: Get, set: Set): void {
     case "session:state": {
       const session = message.session;
       const myUserId = get().myUserId;
-      set({ session });
+      const isHost = session.hostId === myUserId;
+      set({ session, inSession: true });
 
       const player = usePlayer.getState();
-      player.setSessionRole(true, session.hostId === myUserId);
+      player.setSessionRole(true, isHost);
+
+      /*
+       * ホストは基準そのものなので、返ってきた状態に自分を合わせない。
+       * 合わせにいくと、自分の操作が折り返してきて再生が止まる。
+       */
+      if (isHost) return;
 
       // キューと曲がホスト側で変わったら追随する。
       const track = session.state.track;
@@ -201,12 +254,18 @@ function handleServerMessage(message: ServerMessage, get: Get, set: Set): void {
         const sameQueue =
           player.queue.length === session.state.queue.length &&
           player.queue.every((t, i) => t.id === session.state.queue[i]?.id);
-        if (!sameQueue) {
-          player.playQueue(session.state.queue, session.state.queueIndex);
-        } else if (player.index !== session.state.queueIndex) {
-          player.playQueue(session.state.queue, session.state.queueIndex);
+        if (!sameQueue || player.index !== session.state.queueIndex) {
+          // 追随で入れ直したことを伝えて、送り返さないようにする。
+          applyRemotely(() => player.playQueue(session.state.queue, session.state.queueIndex));
         }
       }
+
+      // 止まっているかどうかも合わせる。ホストが止めたら一緒に止まる。
+      if (session.state.paused && player.playing) applyRemotely(() => player.toggle());
+      else if (!session.state.paused && !player.playing && track) {
+        applyRemotely(() => player.toggle());
+      }
+
       reconcile(get, set);
       return;
     }
@@ -248,8 +307,10 @@ function toParticipants(
  * わずかなら次の tick で吸収させ、大きく外れたときだけ跳ばす。
  */
 function reconcile(get: Get, set: Set): void {
-  const { session, clockOffsetMs } = get();
+  const { session, clockOffsetMs, myUserId } = get();
   if (!session?.state.track) return;
+  // ホストは基準。自分を自分に合わせる必要はない。
+  if (session.hostId === myUserId) return;
 
   const player = usePlayer.getState();
   const target = expectedPositionMs(session.state, clockOffsetMs);

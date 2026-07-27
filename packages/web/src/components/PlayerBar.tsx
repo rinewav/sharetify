@@ -41,7 +41,7 @@ export function PlayerBar({
   onExpand,
 }: Props) {
   const player = usePlayer();
-  const sessionConnected = useSession((s) => s.connected);
+  const inSession = useSession((s) => s.inSession);
   const track = player.current();
   const duration = player.durationMs();
   const controllable = canControl(player);
@@ -239,7 +239,7 @@ export function PlayerBar({
             type="button"
             onClick={onToggleSessionPanel}
             className={`flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition ${
-              sessionPanelOpen || sessionConnected
+              sessionPanelOpen || inSession
                 ? "bg-accent/15 text-accent"
                 : "text-ink-muted hover:text-ink"
             }`}
