@@ -4,6 +4,7 @@ import type { CacheState, CollectionKind, NodeHealth, Track } from "@musicshare/
 import { AddToPlaylistSheet } from "./components/AddToPlaylistSheet.js";
 import { LayoutProbe, layoutProbeEnabled } from "./components/LayoutProbe.js";
 import { MobileNav } from "./components/MobileNav.js";
+import { NowPlayingView } from "./components/NowPlayingView.js";
 import { PairingSheet, useAutoPairing } from "./components/PairingSheet.js";
 import { PlayerBar } from "./components/PlayerBar.js";
 import { QueuePanel } from "./components/QueuePanel.js";
@@ -36,6 +37,7 @@ export default function App() {
   const [signInOpen, setSignInOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [addingTrack, setAddingTrack] = useState<Track | null>(null);
+  const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
 
   const sessionConnected = useSession((s) => s.connected);
   const playerError = usePlayer((s) => s.error);
@@ -249,6 +251,7 @@ export default function App() {
         onOpenCollection={openCollection}
         onToggleQueue={() => setQueueOpen((open) => !open)}
         queueOpen={queueOpen}
+        onExpand={() => setNowPlayingOpen(true)}
       />
 
       <MobileNav
@@ -257,6 +260,16 @@ export default function App() {
         onOpenSession={() => setSessionPanelOpen(true)}
       />
 
+      {nowPlayingOpen && (
+        <NowPlayingView
+          onClose={() => setNowPlayingOpen(false)}
+          onOpenCollection={openCollection}
+          onOpenQueue={() => {
+            setNowPlayingOpen(false);
+            setQueueOpen(true);
+          }}
+        />
+      )}
       {pairingOpen && <PairingSheet onClose={() => setPairingOpen(false)} />}
       {signInOpen && (
         <SignInSheet

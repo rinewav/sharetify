@@ -89,9 +89,33 @@ export interface CacheStatusResponse {
   entries: CacheEntry[];
 }
 
+/* ------------------------------------------------------------------ *
+ * 歌詞
+ * ------------------------------------------------------------------ */
+
+/** 時刻の付いた 1 行。 */
+export interface LyricsLine {
+  /** 曲の頭からの位置 (ミリ秒)。 */
+  timeMs: number;
+  text: string;
+}
+
+/**
+ * 歌詞の取得結果。
+ *
+ * 時刻付きなら再生に合わせて送れる。本文だけのときは並べて出す。
+ * どちらも無い場合でも、自分で探しに行く先だけは返す。
+ */
+export type LyricsResult =
+  | { kind: "synced"; source: string; lines: LyricsLine[]; searchUrl?: string }
+  | { kind: "plain"; source: string; text: string; searchUrl?: string }
+  | { kind: "instrumental"; source: string; searchUrl?: string }
+  | { kind: "none"; searchUrl?: string };
+
 export const NODE_ROUTES = {
   health: "/api/health",
   search: "/api/search",
+  lyrics: "/api/lyrics",
   /** アルバム・プレイリスト・アーティストの中身。 */
   collection: "/api/collection",
   resolve: "/api/resolve",

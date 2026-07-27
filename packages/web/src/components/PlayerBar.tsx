@@ -28,6 +28,8 @@ interface Props {
   onOpenCollection?: (kind: CollectionKind, id: string, title: string) => void;
   onToggleQueue: () => void;
   queueOpen: boolean;
+  /** 全画面の再生画面を開く。 */
+  onExpand: () => void;
 }
 
 export function PlayerBar({
@@ -36,6 +38,7 @@ export function PlayerBar({
   onOpenCollection,
   onToggleQueue,
   queueOpen,
+  onExpand,
 }: Props) {
   const player = usePlayer();
   const sessionConnected = useSession((s) => s.connected);
@@ -45,20 +48,28 @@ export function PlayerBar({
 
   return (
     <footer className="shrink-0 border-t border-line bg-base">
-      {/* 画面が狭いときは、たたんだ 1 行だけ出す。 */}
+      {/* 画面が狭いときは、たたんだ 1 行だけ出す。押すと全画面へ。 */}
       <div className="flex items-center gap-3 px-3 py-2 md:hidden">
         {track ? (
           <>
-            <Artwork
-              seed={track.id}
-              label={track.title}
-              src={track.artworkUrl}
-              className="size-11"
-            />
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium">{track.title}</div>
-              <div className="truncate text-xs text-ink-muted">
-                <ArtistLink track={track} onOpenCollection={onOpenCollection} />
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={onExpand}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") onExpand();
+              }}
+              className="flex min-w-0 flex-1 cursor-pointer items-center gap-3"
+            >
+              <Artwork
+                seed={track.id}
+                label={track.title}
+                src={track.artworkUrl}
+                className="size-11"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium">{track.title}</div>
+                <div className="truncate text-xs text-ink-muted">{track.artist}</div>
               </div>
             </div>
             <button
@@ -106,14 +117,28 @@ export function PlayerBar({
         <div className="flex w-[30%] min-w-0 items-center gap-3">
           {track ? (
             <>
-              <Artwork
-                seed={track.id}
-                label={track.title}
-                src={track.artworkUrl}
-                className="size-14"
-              />
+              {/* ジャケットを押すと全画面へ。曲名や演奏者の行はそのまま辿れる。 */}
+              <button
+                type="button"
+                onClick={onExpand}
+                className="shrink-0 transition hover:brightness-110"
+                aria-label="再生画面を開く"
+              >
+                <Artwork
+                  seed={track.id}
+                  label={track.title}
+                  src={track.artworkUrl}
+                  className="size-14"
+                />
+              </button>
               <div className="min-w-0">
-                <div className="truncate text-sm font-medium">{track.title}</div>
+                <button
+                  type="button"
+                  onClick={onExpand}
+                  className="block max-w-full truncate text-left text-sm font-medium transition hover:underline"
+                >
+                  {track.title}
+                </button>
                 <div className="truncate text-xs text-ink-muted">
                   <ArtistLink track={track} onOpenCollection={onOpenCollection} />
                 </div>

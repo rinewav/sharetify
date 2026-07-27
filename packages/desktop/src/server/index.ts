@@ -8,6 +8,7 @@ import { cors } from "hono/cors";
 import {
   NODE_DEFAULT_PORT,
   NODE_ROUTES,
+  type LyricsResult,
   type NodeHealth,
   type ResolveResponse,
   type SearchResponse,
@@ -32,6 +33,7 @@ import {
   setLastfmKeys,
   updateNowPlaying,
 } from "./lastfm.js";
+import { fetchLyrics } from "./lyrics.js";
 import { PeerHost } from "./peer.js";
 import {
   fetchCollection,
@@ -50,6 +52,9 @@ import {
  */
 
 const VERSION = "0.1.0";
+
+/** 一度引いた歌詞の控え。曲を行き来するたびに問い合わせない。 */
+const lyricsCache = new Map<string, LyricsResult>();
 
 export function createNodeApp(): Hono {
   const app = new Hono();
@@ -199,6 +204,39 @@ export function createNodeApp(): Hono {
   });
 
   app.get(NODE_ROUTES.cacheStatus, (c) => c.json({ entries: listEntries() }));
+
+  /*
+   * 歌詞。
+   *
+   * 提供元へ取りに行くのはこの PC。中央サーバーは関与しない。
+   * 同じ曲を何度も問い合わせないよう、一度引いたものは覚えておく。
+   */
+  app.get(NODE_ROUTES.lyrics, async (c) => {
+    const title = c.req.query("title")?.trim();
+    const artist = c.req.query("artist")?.trim();
+    if (!title || !artist) return c.json({ error: "title and artist are required" }, 400);
+
+    const track: Track = {
+      id: c.req.query("trackId") ?? `${artist}-${title}`,
+      sourceKind: "remote",
+      sourceId: c.req.query("trackId") ?? "",
+      title,
+      artist,
+      album: c.req.query("album") || undefined,
+      durationMs: Number(c.req.query("durationMs") ?? 0) || undefined,
+    };
+
+    const cached = lyricsCache.get(track.id);
+    if (cached) return c.json(cached);
+
+    try {
+      const result = await fetchLyrics(track);
+      lyricsCache.set(track.id, result);
+      return c.json(result);
+    } catch (error) {
+      return c.json({ error: describeAny(error) }, 502);
+    }
+  });
 
   /* ------------------------------ 聴取記録 ------------------------------ */
 

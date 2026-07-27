@@ -2,9 +2,11 @@ import type {
   CacheStatusResponse,
   CollectionKind,
   CollectionResponse,
+  LyricsResult,
   NodeHealth,
   ResolveResponse,
   SearchResponse,
+  Track,
 } from "@musicshare/shared";
 import { peerClient } from "./peer-client.js";
 
@@ -126,6 +128,18 @@ export async function fetchTrackForOffline(trackId: string): Promise<Blob> {
   const response = await fetch(streamUrl(trackId));
   if (!response.ok) throw new Error("曲を取得できませんでした。");
   return await response.blob();
+}
+
+/** 歌詞を探す。時刻付きが見つかれば再生に合わせて送れる。 */
+export function nodeLyrics(track: Track, signal?: AbortSignal): Promise<LyricsResult> {
+  const params = new URLSearchParams({
+    trackId: track.id,
+    title: track.title,
+    artist: track.artist,
+  });
+  if (track.album) params.set("album", track.album);
+  if (track.durationMs) params.set("durationMs", String(track.durationMs));
+  return getJson<LyricsResult>(`/api/lyrics?${params}`, signal);
 }
 
 /* ------------------------------ 聴取記録 ------------------------------ */
