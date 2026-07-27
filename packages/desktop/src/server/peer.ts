@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import nodeDataChannel from "node-datachannel";
+import WebSocket from "ws";
 import type { DataChannel, PeerConnection } from "node-datachannel";
 import type { Hono } from "hono";
 import {
@@ -15,6 +16,14 @@ import {
   type PeerControl,
   type SignalPayload,
 } from "@sharetify/shared";
+
+/*
+ * 繋ぎ役への経路には ws を使う。
+ *
+ * Node には備え付けのものがあるが、アプリの入れ物 (Electron) の
+ * 本体側には無い。無い所で動かすと起動の時点で倒れるので、
+ * どちらでも同じように動くものを持ち込む。
+ */
 
 /**
  * スマートフォンからの直結を受ける側。

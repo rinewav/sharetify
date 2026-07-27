@@ -1,5 +1,6 @@
-import { createReadStream } from "node:fs";
+import { createReadStream, existsSync, statSync } from "node:fs";
 import { stat } from "node:fs/promises";
+import { extname, join, resolve, sep } from "node:path";
 import { hostname } from "node:os";
 import { Readable } from "node:stream";
 import { serve } from "@hono/node-server";
@@ -383,7 +384,63 @@ function isAllowedArtworkHost(hostname: string): boolean {
   );
 }
 
-export async function startNodeServer(port = NODE_DEFAULT_PORT) {
+/** 拡張子から中身の種類を決める。分からないものは素の列として渡す。 */
+const CONTENT_TYPES: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+  ".woff2": "font/woff2",
+};
+
+/**
+ * 画面そのものも、この PC から配る。
+ *
+ * 開発中は別に立てた配信役から取っているが、配って回るものには
+ * それが無い。ここから配れば、同じ URL をスマホからも開けるので、
+ * 直結さえできていれば別の仕掛けが要らない。
+ *
+ * 出来合いの配り役は置き場を作業場所からの相対でしか受け取らない。
+ * 包みの中の絶対位置を指したいので、自分で読んで返す。
+ */
+function serveWebApp(app: Hono, webRoot: string): void {
+  app.get("/*", async (c) => {
+    const requested = decodeURIComponent(new URL(c.req.url).pathname);
+
+    /*
+     * 置き場の外へ出る指定は受け付けない。
+     * 「..」を重ねれば、包みの外の何でも読めてしまう。
+     */
+    const target = resolve(webRoot, `.${requested}`);
+    const inside = target === webRoot || target.startsWith(webRoot + sep);
+    const path = inside && existsSync(target) && statSync(target).isFile()
+      ? target
+      // 画面の中の移動は入れ物側が受け持つので、入口を返す。
+      : join(webRoot, "index.html");
+
+    const info = await stat(path);
+    const type = CONTENT_TYPES[extname(path).toLowerCase()] ?? "application/octet-stream";
+    const stream = Readable.toWeb(createReadStream(path)) as ReadableStream;
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": type,
+        "Content-Length": String(info.size),
+        // 中身に応じた名前が付いているものは長く持たせてよい。
+        "Cache-Control": path.includes(`${sep}assets${sep}`)
+          ? "public, max-age=31536000, immutable"
+          : "no-cache",
+      },
+    });
+  });
+}
+
+export async function startNodeServer(port = NODE_DEFAULT_PORT, webRoot?: string) {
   await initCache();
   await loadLastfmConfig();
   const app = createNodeApp();
@@ -398,6 +455,9 @@ export async function startNodeServer(port = NODE_DEFAULT_PORT) {
       enabled: host !== null,
     }),
   );
+
+  // 画面を同梱しているときだけ配る。開発中は別の配信役が受け持つ。
+  if (webRoot) serveWebApp(app, webRoot);
 
   const server = serve({ fetch: app.fetch, port }, (info) => {
     console.log(`[node] listening on http://localhost:${info.port}`);

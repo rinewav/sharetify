@@ -1,6 +1,11 @@
 packages:
   - "packages/*"
+
+# 取り込むときに仕込みを走らせてよいもの。
+# 明示しないと止まるので、可否をはっきりさせる。
 allowBuilds:
   electron: true
   esbuild: true
   node-datachannel: true
+  # Windows 用の入れ物は作らないので走らせない。
+  electron-winstaller: false

@@ -8,8 +8,9 @@
     "dev:hub": "pnpm --filter @sharetify/hub dev",
     "dev:web": "pnpm --filter @sharetify/web dev",
     "dev:desktop": "pnpm --filter @sharetify/desktop dev",
-    "build": "pnpm --filter \"./packages/*\" build",
-    "typecheck": "pnpm --filter \"./packages/*\" typecheck"
+    "build": "pnpm --filter @sharetify/shared build && pnpm --filter \"./packages/*\" build",
+    "typecheck": "pnpm --filter \"./packages/*\" typecheck",
+    "build:shared": "pnpm --filter @sharetify/shared build"
   },
   "devDependencies": {
     "typescript": "^5.7.3"

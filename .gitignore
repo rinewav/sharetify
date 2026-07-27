@@ -16,3 +16,4 @@ bin/yt-dlp.exe
 .playwright-mcp/
 __pycache__/
 *.pyc
+packages/desktop/release/
