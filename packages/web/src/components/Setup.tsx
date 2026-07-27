@@ -7,6 +7,7 @@ import {
   Laptop,
   Loader2,
   Music,
+  Search,
   Share,
   Smartphone,
   SquarePlus,
@@ -17,7 +18,13 @@ import type { NodeHealth } from "@sharetify/shared";
 import { PairQr } from "./PairQr.js";
 import { useInstallState } from "../lib/install.js";
 import { useLibrary } from "../lib/library-store.js";
-import { nodePairingStatus, type PairingStatus } from "../lib/node-client.js";
+import {
+  nodeInstallToolchain,
+  nodePairingStatus,
+  nodeToolchain,
+  type PairingStatus,
+  type ToolchainStatus,
+} from "../lib/node-client.js";
 import { isDesktopApp } from "../lib/platform.js";
 
 /**
@@ -117,13 +124,15 @@ export function Setup({ health, onClose, onOpenPairing }: Props) {
 
 interface Step {
   id: string;
-  kind: "welcome" | "how" | "install" | "connect" | "host" | "name";
+  kind: "welcome" | "how" | "install" | "connect" | "host" | "name" | "toolchain";
 }
 
 /** 配って回す入れ物の側。ここが迎える側になる。 */
 const DESKTOP_STEPS: Step[] = [
   { id: "welcome", kind: "welcome" },
   { id: "how", kind: "how" },
+  // 探して取ってくるのはこの PC なので、そのための道具をここで整える。
+  { id: "toolchain", kind: "toolchain" },
   { id: "host", kind: "host" },
   { id: "name", kind: "name" },
 ];
@@ -157,9 +166,109 @@ function Content({
       return <ConnectStep health={health} onOpenPairing={onOpenPairing} />;
     case "host":
       return <HostStep health={health} />;
+    case "toolchain":
+      return <ToolchainStep />;
     case "name":
       return <NameStep />;
   }
+}
+
+/**
+ * 曲を探して取ってくるための道具を整える。
+ *
+ * 機械に元から入っているものではないので、そのままでは何も探せない。
+ * 手で入れてもらうのは酷なので、ここで用意する。
+ */
+function ToolchainStep() {
+  const [status, setStatus] = useState<ToolchainStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [step, setStep] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void nodeToolchain()
+      .then((s) => !cancelled && setStatus(s))
+      .catch(() => !cancelled && setStatus(null));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const install = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const next = await nodeInstallToolchain((s) => {
+        if (s.step) setStep(s.detail ? `${s.step} (${s.detail})` : s.step);
+      });
+      setStatus(next);
+      setStep(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "うまくいきませんでした。");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (status?.ready) {
+    return (
+      <div className="animate-rise">
+        <Badge ok>準備できています</Badge>
+        <h1 className="mt-4 text-2xl font-bold tracking-tight">曲を探せます</h1>
+        <p className="mt-2 text-sm leading-relaxed text-ink-muted">
+          必要な道具はそろっています。このまま進んでください。
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="animate-rise">
+      <Badge>もう少しで使えます</Badge>
+      <h1 className="mt-4 text-2xl font-bold tracking-tight">道具をそろえる</h1>
+      <p className="mt-2 text-sm leading-relaxed text-ink-muted">
+        曲を探して取ってくるのに、外の仕掛けを二つ借りています。
+        この PC の中に置き場を作って、そこに入れます。
+        機械に元から入っているものには触りません。
+      </p>
+
+      <div className="mt-5 space-y-2.5 rounded-lg bg-surface p-4">
+        <Manual
+          n={1}
+          icon={status?.catalog ? <Check className="size-4 text-accent" /> : <Search className="size-4" />}
+          text="曲を探す仕掛け"
+        />
+        <Manual
+          n={2}
+          icon={status?.resolver ? <Check className="size-4 text-accent" /> : <Download className="size-4" />}
+          text="音を取ってくる仕掛け"
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={() => void install()}
+        disabled={busy}
+        className="press mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-accent py-3 text-sm font-semibold text-accent-ink transition hover:brightness-110 disabled:opacity-60"
+      >
+        {busy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+        {busy ? (step ?? "用意しています…") : "用意する"}
+      </button>
+
+      {busy && (
+        <p className="mt-3 text-center text-[11px] text-ink-faint">
+          はじめの一度だけです。少し時間がかかります。
+        </p>
+      )}
+      {error && (
+        <div className="mt-3 flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs leading-relaxed text-amber-200">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function Welcome() {

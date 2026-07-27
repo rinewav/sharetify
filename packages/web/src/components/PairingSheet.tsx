@@ -165,5 +165,25 @@ export function useAutoPairing(): PeerStatus {
     peerClient.connect(code);
   }, []);
 
+  /*
+   * 画面に戻ったときと、電波が返ったときは、待たずに試し直す。
+   * そういう場面では、たいてい繋がるようになっている。
+   */
+  useEffect(() => {
+    const retry = () => peerClient.retryNow();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") retry();
+    };
+
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", retry);
+    window.addEventListener("focus", retry);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", retry);
+      window.removeEventListener("focus", retry);
+    };
+  }, []);
+
   return status;
 }

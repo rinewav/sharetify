@@ -59,6 +59,19 @@ export class PeerClient {
   private status: PeerStatus = "idle";
   private requestCounter = 0;
 
+  /*
+   * 繋ぎ直しのために覚えておくもの。
+   *
+   * 外に持ち歩く端末では、電波が切れたり画面を消したりで
+   * いつでも途切れる。そのたびに手で入れ直させるのは酷なので、
+   * 黙って繋ぎ直す。
+   */
+  private lastCode: string | null = null;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private retryCount = 0;
+  /** 利用者が自分でやめたか。やめたなら繋ぎ直さない。 */
+  private stopped = false;
+
   get currentStatus(): PeerStatus {
     return this.status;
   }
@@ -77,9 +90,55 @@ export class PeerClient {
     for (const listener of this.statusListeners) listener(status, detail);
   }
 
+  /**
+   * 次の繋ぎ直しを仕込む。
+   *
+   * すぐに何度も試すと、こちらも相手も無駄に忙しくなる。
+   * 失敗が続くほど間隔を空け、ただし空けすぎない。
+   */
+  private scheduleRetry(): void {
+    if (this.stopped || !this.lastCode || this.retryTimer) return;
+
+    this.retryCount += 1;
+    // 1秒から始めて、倍々にしていき、30秒で頭打ちにする。
+    const waitMs = Math.min(30_000, 1000 * 2 ** Math.min(this.retryCount - 1, 5));
+
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      if (this.stopped || !this.lastCode) return;
+      this.connect(this.lastCode, { retry: true });
+    }, waitMs);
+  }
+
+  /** 繋ぎ直しの待ちを取り消す。 */
+  private cancelRetry(): void {
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+  }
+
+  /**
+   * いま試し直す。
+   *
+   * 画面に戻ったときや電波が返ったときは、待たずに試してよい。
+   * そういう場面では、たいてい繋がるようになっている。
+   */
+  retryNow(): void {
+    if (this.stopped || !this.lastCode || this.ready) return;
+    this.cancelRetry();
+    this.retryCount = 0;
+    this.connect(this.lastCode, { retry: true });
+  }
+
   /** 合言葉を使って接続する。 */
-  connect(code: string): void {
-    this.close();
+  connect(code: string, options: { retry?: boolean } = {}): void {
+    this.cancelRetry();
+    this.close({ keepRetry: true });
+
+    this.lastCode = code.trim().toUpperCase();
+    this.stopped = false;
+    // 自分から繋ぎ直したときは、数え直して間隔を戻す。
+    if (!options.retry) this.retryCount = 0;
+
     this.setStatus("connecting");
 
     // 引き合わせも、普段のやり取りと同じ中央へ向かう。
@@ -102,11 +161,29 @@ export class PeerClient {
     });
 
     socket.addEventListener("close", () => {
-      if (this.status !== "connected") this.setStatus("closed");
+      /*
+       * 引き合わせの経路が閉じただけなら、直結が生きていることもある。
+       * 生きていないときだけ繋ぎ直す。
+       */
+      if (this.ready) return;
+      this.setStatus("closed");
+      this.scheduleRetry();
     });
   }
 
-  close(): void {
+  /**
+   * 経路を畳む。
+   *
+   * 利用者が自分でやめたときは、繋ぎ直しも止める。
+   * 繋ぎ直しの途中で畳むときだけ、その段取りを残す。
+   */
+  close(options: { keepRetry?: boolean } = {}): void {
+    if (!options.keepRetry) {
+      this.stopped = true;
+      this.cancelRetry();
+      this.lastCode = null;
+    }
+
     for (const pending of this.pending.values()) {
       pending.reject(new Error("接続が閉じられました。"));
     }
@@ -174,8 +251,11 @@ export class PeerClient {
       const state = connection.connectionState;
       if (state === "failed") {
         this.setStatus("failed", "直接つながりませんでした。");
+        // 電波が変わっただけのこともある。少し待って試し直す。
+        this.scheduleRetry();
       } else if (state === "disconnected" || state === "closed") {
         this.setStatus("closed");
+        this.scheduleRetry();
       }
     });
   }
@@ -211,8 +291,15 @@ export class PeerClient {
   private wireChannel(channel: RTCDataChannel): void {
     channel.binaryType = "arraybuffer";
 
-    channel.addEventListener("open", () => this.setStatus("connected"));
-    channel.addEventListener("close", () => this.setStatus("closed"));
+    channel.addEventListener("open", () => {
+      // つながったら数え直す。次に切れたときは、また短い間隔から試す。
+      this.retryCount = 0;
+      this.setStatus("connected");
+    });
+    channel.addEventListener("close", () => {
+      this.setStatus("closed");
+      this.scheduleRetry();
+    });
 
     channel.addEventListener("message", (event) => {
       if (typeof event.data === "string") {

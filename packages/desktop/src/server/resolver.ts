@@ -20,8 +20,20 @@ import type {
  * 壊れたときに「なぜか無音」にならないよう、失敗は必ず理由付きで返す。
  */
 
-const RESOLVER_BIN = process.env.SHARETIFY_RESOLVER ?? "yt-dlp";
-const PYTHON_BIN = process.env.SHARETIFY_PYTHON ?? "python3";
+/*
+ * 使う実行ファイルは、起動時に調べた結果を受け取る。
+ *
+ * 機械に元から入っているとは限らないので、決め打ちにできない。
+ * 自分で用意した置き場のものを先に使い、無ければ機械のものを探す。
+ */
+let RESOLVER_BIN = process.env.SHARETIFY_RESOLVER ?? "yt-dlp";
+let PYTHON_BIN = process.env.SHARETIFY_PYTHON ?? "python3";
+
+/** 調べた結果を反映する。整ったあとに呼ぶ。 */
+export function useToolchain(python: string | null, resolver: string | null): void {
+  if (python) PYTHON_BIN = python;
+  if (resolver) RESOLVER_BIN = resolver;
+}
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 /** カタログ検索スクリプトの場所。 */

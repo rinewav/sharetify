@@ -45,7 +45,14 @@ import {
   resolveStreamUrl,
   ResolverFailure,
   search,
+  useToolchain,
 } from "./resolver.js";
+import {
+  inspectToolchain,
+  installToolchain,
+  updateResolver,
+  type ToolchainStatus,
+} from "./toolchain.js";
 
 /**
  * node サーバー — 各ユーザーの PC の中だけで動く。
@@ -78,15 +85,67 @@ export function createNodeApp(): Hono {
   app.use("/api/*", cors());
 
   app.get(NODE_ROUTES.health, async (c) => {
-    const resolver = await isResolverReady();
+    /*
+     * 道具立てが整っているかを答えの中に含める。
+     *
+     * 整っていないと、探すことも鳴らすこともできない。
+     * それを黙っていると「なぜか何も出ない」状態になる。
+     */
+    const tools = await inspectToolchain();
     const health: NodeHealth = {
       ok: true,
       version: VERSION,
-      resolverReady: resolver.ready,
-      resolverMessage: resolver.message,
+      resolverReady: tools.ready,
+      resolverMessage: tools.message,
       cachedTrackCount: cachedCount(),
     };
     return c.json(health);
+  });
+
+  /* ------------------------------ 道具立て ------------------------------ */
+
+  app.get("/api/toolchain", async (c) => c.json(await inspectToolchain()));
+
+  /*
+   * 足りないものを入れる。
+   *
+   * 時間がかかるので、どこまで進んだかを送りながら行う。
+   * 黙って待たせると、止まっているのか進んでいるのか分からない。
+   */
+  app.post("/api/toolchain/install", async (c) => {
+    const stream = new ReadableStream({
+      async start(controller) {
+        const send = (payload: unknown) => {
+          controller.enqueue(new TextEncoder().encode(`${JSON.stringify(payload)}\n`));
+        };
+
+        try {
+          const status = await installToolchain((step, detail) => send({ step, detail }));
+          useToolchain(status.python, status.resolverBin);
+          send({ done: true, status });
+        } catch (error) {
+          send({ done: true, error: describeAny(error) });
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: { "Content-Type": "application/x-ndjson; charset=utf-8" },
+    });
+  });
+
+  /** 音を取ってくる仕掛けだけを新しくする。供給元の作りが変わったとき用。 */
+  app.post("/api/toolchain/update", async (c) => {
+    try {
+      await updateResolver();
+      const status = await inspectToolchain();
+      useToolchain(status.python, status.resolverBin);
+      return c.json(status);
+    } catch (error) {
+      return c.json({ error: describeAny(error) }, 502);
+    }
   });
 
   app.get(NODE_ROUTES.search, async (c) => {
@@ -451,6 +510,18 @@ function serveWebApp(app: Hono, webRoot: string): void {
 export async function startNodeServer(port = NODE_DEFAULT_PORT, webRoot?: string) {
   await initCache();
   await loadLastfmConfig();
+
+  /*
+   * 立ち上げる時点で、使える実行ファイルを見つけておく。
+   * 見つからなくても止めない。画面から用意できるようにしてある。
+   */
+  const tools: ToolchainStatus = await inspectToolchain();
+  useToolchain(tools.python, tools.resolverBin);
+  console.log(
+    tools.ready
+      ? "[node] 道具立ては整っています"
+      : `[node] 道具立てが足りません: ${tools.message ?? ""}`,
+  );
   const app = createNodeApp();
 
   let host: PeerHost | null = null;

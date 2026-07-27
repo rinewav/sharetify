@@ -199,6 +199,74 @@ export function nodeLyrics(track: Track, signal?: AbortSignal): Promise<LyricsRe
   return getJson<LyricsResult>(`/api/lyrics?${params}`, signal);
 }
 
+/* ------------------------------ 道具立て ------------------------------ */
+
+export interface ToolchainStatus {
+  /** そのまま使える状態か。 */
+  ready: boolean;
+  /** 曲の情報を引く仕掛けが使えるか。 */
+  catalog: boolean;
+  /** 音を取ってくる仕掛けが使えるか。 */
+  resolver: boolean;
+  message?: string;
+}
+
+export function nodeToolchain(signal?: AbortSignal): Promise<ToolchainStatus> {
+  return getJson<ToolchainStatus>("/api/toolchain", signal);
+}
+
+export interface InstallStep {
+  step?: string;
+  detail?: string;
+  done?: boolean;
+  error?: string;
+  status?: ToolchainStatus;
+}
+
+/**
+ * 足りないものを入れる。
+ *
+ * 時間がかかるので、進み具合を受け取りながら待つ。
+ * 黙って待たせると、止まっているのか進んでいるのか分からない。
+ */
+export async function nodeInstallToolchain(
+  onStep: (step: InstallStep) => void,
+): Promise<ToolchainStatus> {
+  const response = await fetch(`${BASE}/api/toolchain/install`, { method: "POST" });
+  if (!response.body) throw new Error("進み具合を受け取れませんでした。");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result: ToolchainStatus | null = null;
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    // 行ごとに区切られて届く。最後の切れ端は次に持ち越す。
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const payload = JSON.parse(line) as InstallStep;
+      onStep(payload);
+      if (payload.error) throw new Error(payload.error);
+      if (payload.status) result = payload.status;
+    }
+  }
+
+  if (!result) throw new Error("うまく整いませんでした。");
+  return result;
+}
+
+/** 音を取ってくる仕掛けだけを新しくする。 */
+export function nodeUpdateResolver(): Promise<ToolchainStatus> {
+  return post<ToolchainStatus>("/api/toolchain/update");
+}
+
 /* ------------------------------ 迎える側 ------------------------------ */
 
 export interface PairingStatus {
