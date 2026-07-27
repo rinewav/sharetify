@@ -174,11 +174,6 @@ function HistorySection() {
           ? "まだありません。聴いた曲がここに溜まります。"
           : `${count} 回ぶん。ホームのおすすめは、この跡から組み立てています。`}
       </p>
-      {shared && (
-        <p className="mt-1 text-xs text-ink-muted">
-          自分の PC と分け合っています。運営側のサーバーには送っていません。
-        </p>
-      )}
 
       {count > 0 &&
         (asking ? (
@@ -227,7 +222,9 @@ function HistorySection() {
         ))}
 
       <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">
-        跡はこの端末の中にだけあり、どこにも送っていません。
+        {shared
+          ? "跡はこの端末と自分の PC の間だけにあり、運営側のサーバーには送っていません。"
+          : "跡はこの端末の中にだけあり、どこにも送っていません。"}
       </p>
     </Section>
   );

@@ -28,6 +28,14 @@ const BATCH = 500;
 /** 聴き終えてから預けるまでの間。続けて聴くぶんをまとめる。 */
 const SETTLE_MS = 5000;
 
+/**
+ * 何も起きなくても、たまに突き合わせる間隔。
+ *
+ * 別の端末が足したぶんは、こちらが訊きに行くまで降りてこない。
+ * 電話で聴いたものが、開いたままの PC にも回るようにする。
+ */
+const IDLE_MS = 5 * 60_000;
+
 let syncing = false;
 let pendingTimer: ReturnType<typeof setTimeout> | null = null;
 /** この繋がりで、どこまで預けたか。ここより新しいものだけを次に渡す。 */
@@ -111,6 +119,13 @@ export function startHistorySync(): void {
   onHistoryChange(() => {
     if (canReachNode()) syncSoon();
   });
+
+  /*
+   * 別の端末が足したぶんは、こちらが訊きに行くまで降りてこない。
+   * 画面に戻ったときと、置きっぱなしのときのために、たまに訊く。
+   */
+  window.addEventListener("focus", () => void syncHistory());
+  setInterval(() => void syncHistory(), IDLE_MS);
 
   void syncHistory();
 }

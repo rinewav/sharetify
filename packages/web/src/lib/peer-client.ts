@@ -201,11 +201,13 @@ export class PeerClient {
     this.socket = socket;
 
     socket.addEventListener("open", () => {
+      if (this.socket !== socket) return;
       this.sendSignal({ type: "guest:claim", code: code.trim().toUpperCase() });
       this.setStatus("waiting-host");
     });
 
     socket.addEventListener("message", (event) => {
+      if (this.socket !== socket) return;
       let message: GuestEvent;
       try {
         message = JSON.parse(String(event.data)) as GuestEvent;
@@ -216,6 +218,8 @@ export class PeerClient {
     });
 
     socket.addEventListener("close", () => {
+      // 既に次を始めているなら、古いほうの終わりは関係ない。
+      if (this.socket !== socket) return;
       /*
        * 引き合わせの経路が閉じただけなら、直結が生きていることもある。
        * まだ道を作っている最中のこともある。
@@ -274,12 +278,27 @@ export class PeerClient {
         return;
 
       case "guest:host-left":
+        /*
+         * PC が居なくなった。畳むが、繋ぎ直しの段取りは残す。
+         * 立ち上げ直しただけのことも多く、じきに戻ってくる。
+         */
         this.setStatus("closed", "PC 側の接続が切れました。");
-        this.close();
+        this.close({ keepRetry: true });
+        this.scheduleRetry();
         return;
 
       case "error":
+        /*
+         * 合言葉の相手が見つからなかった。
+         *
+         * 打ち間違いのこともあるが、PC がまだ立ち上がっていないだけのことも多い。
+         * 間を取り持つ経路はこのあとも開いたままなので、
+         * 閉じるのを待っていると、いつまでも試し直されない。
+         * ここで自分から次を仕込んでおく。間隔は失敗するほど空くので、
+         * 打ち間違いのときに叩き続けることにはならない。
+         */
         this.setStatus("failed", event.message);
+        this.scheduleRetry();
         return;
     }
   }
