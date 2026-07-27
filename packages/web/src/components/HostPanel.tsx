@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Check, Copy, Laptop, Loader2, Smartphone, X } from "lucide-react";
+import { PairQr } from "./PairQr.js";
 import { Sheet } from "./Sheet.js";
 import { nodePairingStatus, type PairingStatus } from "../lib/node-client.js";
 
@@ -66,8 +67,15 @@ export function HostPanel({ onClose }: Props) {
         </div>
       </div>
 
+      {/* 向けてもらうだけで繋がる。読み上げて打ってもらうより早い。 */}
+      {status?.code && (
+        <div className="mt-4 flex justify-center">
+          <PairQr code={status.code} />
+        </div>
+      )}
+
       <div className="mt-4">
-        <div className="text-xs font-semibold text-ink-faint">スマホに渡す合言葉</div>
+        <div className="text-xs font-semibold text-ink-faint">読み取れないときは合言葉で</div>
         {status?.code ? (
           <button
             type="button"
@@ -97,8 +105,9 @@ export function HostPanel({ onClose }: Props) {
           </div>
         )}
         <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">
-          スマホで <span className="text-ink-muted">sharetify.rine.bio</span> を開き、
-          右上の「つなぐ」からこの合言葉を入れてください。
+          スマホのカメラを上の絵に向けるか、
+          <span className="text-ink-muted"> sharetify.rine.bio </span>
+          を開いて右上の「つなぐ」からこの合言葉を入れてください。
         </p>
       </div>
 

@@ -310,7 +310,9 @@ export default function App() {
         <SettingsSheet
           onClose={() => setSettingsOpen(false)}
           onOpenPairing={() => setPairingOpen(true)}
+          onRestartSetup={() => setSetupOpen(true)}
           nodeOnline={nodeOnline}
+          health={health}
         />
       )}
       {addingTrack && (

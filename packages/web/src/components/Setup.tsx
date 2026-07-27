@@ -14,6 +14,7 @@ import {
   Wifi,
 } from "lucide-react";
 import type { NodeHealth } from "@sharetify/shared";
+import { PairQr } from "./PairQr.js";
 import { useInstallState } from "../lib/install.js";
 import { useLibrary } from "../lib/library-store.js";
 import { nodePairingStatus, type PairingStatus } from "../lib/node-client.js";
@@ -346,15 +347,21 @@ function HostStep({ health }: { health: NodeHealth | null }) {
         曲を探して取ってくるのはこの PC。スマホからは、下の合言葉でつなぎます。
       </p>
 
-      <div className="mt-5 rounded-lg bg-surface p-4">
-        <div className="text-xs font-semibold text-ink-faint">スマホに渡す合言葉</div>
-        <div className="mt-2 font-mono text-3xl tracking-[0.3em]">
-          {pairing?.code ?? "······"}
+      <div className="mt-5 flex items-center gap-4 rounded-lg bg-surface p-4">
+        {pairing?.code ? (
+          <PairQr code={pairing.code} size={128} />
+        ) : (
+          <div className="size-32 animate-pulse rounded-xl bg-surface-3" />
+        )}
+        <div className="min-w-0">
+          <div className="text-xs font-semibold text-ink-faint">スマホのカメラを向ける</div>
+          <div className="mt-2 font-mono text-2xl tracking-[0.2em]">
+            {pairing?.code ?? "······"}
+          </div>
+          <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">
+            読み取れないときは、この合言葉を打ち込んでも繋がります。
+          </p>
         </div>
-        <p className="mt-3 text-[11px] leading-relaxed text-ink-faint">
-          スマホで <span className="text-ink-muted">sharetify.rine.bio</span> を開き、
-          右上の「つなぐ」からこの合言葉を入れてください。
-        </p>
       </div>
 
       {!ready && (

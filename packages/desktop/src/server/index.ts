@@ -57,6 +57,14 @@ import {
 
 const VERSION = "0.1.0";
 
+/**
+ * 引き合わせを頼む先。
+ *
+ * スマホが開く場所と同じでなければ、互いを見つけられない。
+ * 別の場所に立てているときは SHARETIFY_HUB_URL で差し替える。
+ */
+const DEFAULT_HUB_URL = "https://sharetify.rine.bio";
+
 /** 一度引いた歌詞の控え。曲を行き来するたびに問い合わせない。 */
 const lyricsCache = new Map<string, LyricsResult>();
 
@@ -482,7 +490,11 @@ export async function startNodeServer(port = NODE_DEFAULT_PORT, webRoot?: string
    */
   if (process.env.SHARETIFY_PAIRING !== "off") {
     host = new PeerHost(app, {
-      hubUrl: process.env.SHARETIFY_HUB_URL,
+      /*
+       * 名乗り出る先は、スマホが開くのと同じ中央でなければならない。
+       * 手元の中央に名乗り出ても、外にいるスマホからは見つけられない。
+       */
+      hubUrl: process.env.SHARETIFY_HUB_URL ?? DEFAULT_HUB_URL,
       label: hostname(),
       onCode: (code) => console.log(`[peer] 合言葉: ${code}`),
       onGuestCountChange: (count) => console.log(`[peer] 接続中の端末: ${count}`),

@@ -8,6 +8,7 @@ import type {
   Track,
   User,
 } from "@sharetify/shared";
+import { HUB_BASE } from "./hub-base.js";
 
 /**
  * 中央サーバーとのやり取り。
@@ -16,7 +17,8 @@ import type {
  * 曲の実体は各自の PC から取るので、この層は名前と並びの管理に徹する。
  */
 
-const BASE = import.meta.env["VITE_HUB_BASE"] ?? "/hub-api";
+// 場所の決め方は一箇所にまとめてある。
+const BASE = HUB_BASE;
 const TOKEN_KEY = "sharetify.hub-token";
 
 export function storedToken(): string | null {

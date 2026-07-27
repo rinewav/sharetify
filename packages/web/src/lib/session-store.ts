@@ -10,6 +10,7 @@ import {
   type ServerMessage,
   type SessionControl,
 } from "@sharetify/shared";
+import { hubSocketUrl } from "./hub-base.js";
 import { hubCreateSession, hubListSessions, storedToken } from "./hub-client.js";
 import { useLibrary } from "./library-store.js";
 import { attachSessionBridge, usePlayer } from "./player-store.js";
@@ -104,13 +105,8 @@ export const useSession = create<SessionState>((set, get) => ({
   connect: (token, userId) => {
     get().disconnect();
 
-    // 中央へは同一オリジンの中継を通す。混在コンテンツで弾かれないため。
-    const base = import.meta.env["VITE_HUB_BASE"] ?? "/hub-api";
-    const url = new URL(`${base}/ws`, window.location.origin);
-    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-    url.searchParams.set("token", token);
-
-    const ws = new WebSocket(url.toString());
+    // 行き先の決め方は一箇所にまとめてある。
+    const ws = new WebSocket(hubSocketUrl("/ws", { token }));
     socket = ws;
     set({ myUserId: userId });
 

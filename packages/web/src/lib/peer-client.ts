@@ -77,15 +77,12 @@ export class PeerClient {
   }
 
   /** 合言葉を使って接続する。 */
-  connect(code: string, hubBase = "/hub-api"): void {
+  connect(code: string): void {
     this.close();
     this.setStatus("connecting");
 
-    const url = new URL(`${hubBase}${PAIR_ROUTE}`, window.location.origin);
-    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-    url.searchParams.set("role", "guest");
-
-    const socket = new WebSocket(url.toString());
+    // 引き合わせも、普段のやり取りと同じ中央へ向かう。
+    const socket = new WebSocket(hubSocketUrl(PAIR_ROUTE, { role: "guest" }));
     this.socket = socket;
 
     socket.addEventListener("open", () => {

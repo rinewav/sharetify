@@ -87,6 +87,9 @@ export function PairingSheet({ onClose }: Props) {
         </button>
 
         <p className="mt-4 text-[11px] leading-relaxed text-ink-faint">
+          PC 側に出ている絵をカメラで読み取れば、打たずに繋げます。
+        </p>
+        <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">
           つないだあとは、この端末と PC が直接やり取りします。
           曲のデータが運営側のサーバーを通ることはありません。
         </p>
@@ -143,9 +146,23 @@ export function useAutoPairing(): PeerStatus {
   useEffect(() => peerClient.onStatus(setStatus), []);
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORED_CODE_KEY);
-    if (!stored) return;
-    peerClient.connect(stored);
+    /*
+     * 絵を読み取って開いたときは、そこに合言葉が入っている。
+     * 打ち直してもらう必要はないので、そのまま繋ぐ。
+     */
+    const fromLink = new URLSearchParams(window.location.search).get("pair");
+    const code = fromLink?.trim().toUpperCase() || localStorage.getItem(STORED_CODE_KEY);
+    if (!code) return;
+
+    if (fromLink) {
+      localStorage.setItem(STORED_CODE_KEY, code);
+      // 住所に残しておくと、次に開いたときも同じ合言葉で繋ごうとする。
+      const clean = new URL(window.location.href);
+      clean.searchParams.delete("pair");
+      window.history.replaceState(null, "", clean.toString());
+    }
+
+    peerClient.connect(code);
   }, []);
 
   return status;

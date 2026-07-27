@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Check, ExternalLink, Loader2, Trash2, X } from "lucide-react";
+import { Check, ExternalLink, Loader2, RotateCcw, Trash2, TriangleAlert, X } from "lucide-react";
+import type { NodeHealth } from "@sharetify/shared";
 import { Sheet } from "./Sheet.js";
 import { useLibrary } from "../lib/library-store.js";
 import {
@@ -16,10 +17,19 @@ import { setScrobblingEnabled } from "../lib/scrobbler.js";
 interface Props {
   onClose: () => void;
   onOpenPairing: () => void;
+  onRestartSetup: () => void;
   nodeOnline: boolean;
+  /** 曲を取ってくる仕掛けが整っているか。整っていない理由も持つ。 */
+  health: NodeHealth | null;
 }
 
-export function SettingsSheet({ onClose, onOpenPairing, nodeOnline }: Props) {
+export function SettingsSheet({
+  onClose,
+  onOpenPairing,
+  onRestartSetup,
+  nodeOnline,
+  health,
+}: Props) {
   const { user, signOut } = useLibrary();
 
   return (
@@ -58,8 +68,46 @@ export function SettingsSheet({ onClose, onOpenPairing, nodeOnline }: Props) {
             </div>
           </Section>
 
+          {/*
+            曲を取ってくる仕掛けが欠けていると、何をしても新しい曲が鳴らない。
+            そのときは、直し方への入口をここに出す。
+          */}
+          {nodeOnline && health && !health.resolverReady && (
+            <Section title="曲を取ってくる仕掛け">
+              <div className="flex items-start gap-2.5 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-200">
+                <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+                <span>{health.resolverMessage ?? "整っていません。"}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onRestartSetup();
+                }}
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-surface-3 py-2.5 text-xs font-medium transition hover:bg-line"
+              >
+                <RotateCcw className="size-3.5" />
+                最初の案内をやり直す
+              </button>
+            </Section>
+          )}
+
           <OfflineSection />
           <LastfmSection nodeOnline={nodeOnline} />
+
+          <Section title="最初の案内">
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onRestartSetup();
+              }}
+              className="flex w-full items-center justify-center gap-2 rounded-full border border-line py-2.5 text-xs text-ink-muted transition hover:border-ink-muted hover:text-ink"
+            >
+              <RotateCcw className="size-3.5" />
+              もう一度見る
+            </button>
+          </Section>
 
           {user && (
             <Section title="サインイン">
