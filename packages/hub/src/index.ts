@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import { dirname, join, resolve as resolvePath } from "node:path";
+import { fileURLToPath } from "node:url";
 import { serve } from "@hono/node-server";
 import { createNodeWebSocket } from "@hono/node-ws";
 import { Hono } from "hono";
@@ -11,6 +14,7 @@ import {
   type MeResponse,
   type Track,
 } from "@sharetify/shared";
+import { attachWebApp } from "@sharetify/shared/server";
 import {
   addTrackToPlaylist,
   canAccessPlaylist,
@@ -356,6 +360,23 @@ app.get(
     };
   }),
 );
+
+/*
+ * 画面も中央から配る。
+ *
+ * スマホには入れ物を配れないので、ここが最初に開く先になる。
+ * 開いたあとは自分の PC へ直接つなぎ、音声はそちらを流れる。
+ * ここを通るのは画面を組み立てる材料だけで、音声は通らない。
+ */
+const HERE = dirname(fileURLToPath(import.meta.url));
+const WEB_ROOT = process.env.SHARETIFY_WEB_ROOT ?? resolvePath(HERE, "..", "web");
+
+if (existsSync(join(WEB_ROOT, "index.html"))) {
+  attachWebApp(app, WEB_ROOT);
+  console.log(`[hub] serving web from ${WEB_ROOT}`);
+} else {
+  console.log("[hub] web app not bundled; API only");
+}
 
 const port = Number(process.env.PORT ?? HUB_DEFAULT_PORT);
 
