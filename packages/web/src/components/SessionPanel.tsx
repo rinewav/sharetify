@@ -58,7 +58,7 @@ export function SessionPanel({ onClose, fullWidth = false }: Props) {
             <div className="truncate text-sm">{track?.title ?? "—"}</div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
+          <div className="scroll-area min-h-0 flex-1 px-2 py-2">
             {participants.map((participant) => (
               <div
                 key={participant.userId}

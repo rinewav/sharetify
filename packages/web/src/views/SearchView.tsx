@@ -13,8 +13,13 @@ interface Props {
 export function SearchView({ cacheStates, health }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Track[]>([]);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * 「入力済みだが、まだ答えが返っていない」状態を 1 つの値で持つ。
+   * 待ち時間と通信中を別々の真偽値にすると、その隙間で
+   * 一瞬だけ「見つかりません」が出てしまう。
+   */
+  const [phase, setPhase] = useState<"idle" | "pending" | "done">("idle");
   const playQueue = usePlayer((s) => s.playQueue);
 
   const online = health?.ok === true;
@@ -25,23 +30,27 @@ export function SearchView({ cacheStates, health }: Props) {
     if (!term) {
       setResults([]);
       setError(null);
+      setPhase("idle");
       return;
     }
     if (!online) return;
 
+    // 入力された時点で待ちに入る。ここから結果が確定するまで空表示は出さない。
+    setPhase("pending");
+    setError(null);
+
     const controller = new AbortController();
     const timer = setTimeout(async () => {
-      setLoading(true);
-      setError(null);
       try {
         const { tracks } = await nodeSearch(term, 20, controller.signal);
+        if (controller.signal.aborted) return;
         setResults(tracks);
+        setPhase("done");
       } catch (cause) {
         if (controller.signal.aborted) return;
         setError(cause instanceof Error ? cause.message : "検索に失敗しました。");
         setResults([]);
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        setPhase("done");
       }
     }, 450);
 
@@ -50,6 +59,8 @@ export function SearchView({ cacheStates, health }: Props) {
       clearTimeout(timer);
     };
   }, [query, online]);
+
+  const loading = phase === "pending";
 
   return (
     <div className="px-4 pt-20 pb-8 sm:px-6">
@@ -80,9 +91,9 @@ export function SearchView({ cacheStates, health }: Props) {
         </div>
       )}
 
-      {query.trim() === "" ? (
+      {phase === "idle" ? (
         <div className="mt-10 text-sm text-ink-faint">聴きたいものを入力してください。</div>
-      ) : results.length === 0 && !loading && !error ? (
+      ) : phase === "done" && results.length === 0 && !error ? (
         <div className="mt-10 text-sm text-ink-faint">
           「{query}」に一致するものは見つかりませんでした。
         </div>

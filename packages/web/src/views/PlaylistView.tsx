@@ -22,7 +22,7 @@ export function PlaylistView({ playlist, groups, cacheStates }: Props) {
     <div>
       {/* ヘッダ。アートワークの色をそのまま背景に溶かす。 */}
       <div
-        className="flex items-end gap-6 px-6 pt-24 pb-6"
+        className="flex flex-col items-start gap-4 px-4 pt-24 pb-6 sm:flex-row sm:items-end sm:gap-6 sm:px-6"
         style={{
           background: `linear-gradient(180deg, ${artworkGradient(playlist.id)
             .replace("linear-gradient(145deg, ", "")
@@ -33,18 +33,20 @@ export function PlaylistView({ playlist, groups, cacheStates }: Props) {
         <Artwork
           seed={playlist.id}
           label={playlist.name}
-          className="size-[196px] text-6xl"
+          className="size-[140px] text-5xl sm:size-[196px] sm:text-6xl"
           rounded="rounded-md"
         />
         <div className="min-w-0 pb-2">
           <div className="text-xs font-medium">
             {group ? "共有プレイリスト" : "プレイリスト"}
           </div>
-          <h1 className="mt-2 truncate text-6xl font-black tracking-tight">{playlist.name}</h1>
+          <h1 className="mt-2 text-3xl font-black tracking-tight sm:truncate sm:text-6xl">
+            {playlist.name}
+          </h1>
           {playlist.description && (
-            <p className="mt-4 text-sm text-ink-muted">{playlist.description}</p>
+            <p className="mt-3 text-sm text-ink-muted sm:mt-4">{playlist.description}</p>
           )}
-          <div className="mt-3 flex items-center gap-1.5 text-sm text-ink-muted">
+          <div className="mt-3 flex flex-wrap items-center gap-1.5 text-sm text-ink-muted">
             {group && (
               <>
                 <Users className="size-4" />
@@ -62,7 +64,7 @@ export function PlaylistView({ playlist, groups, cacheStates }: Props) {
       </div>
 
       {/* 操作列 */}
-      <div className="flex items-center gap-6 px-6 py-6">
+      <div className="flex items-center gap-5 px-4 py-5 sm:gap-6 sm:px-6 sm:py-6">
         <button
           type="button"
           onClick={() => playQueue(tracks, 0)}

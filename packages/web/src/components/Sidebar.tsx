@@ -59,7 +59,7 @@ export function Sidebar({ route, onNavigate, playlists, groups }: Props) {
           </button>
         </div>
 
-        <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+        <div className="no-scrollbar scroll-area min-h-0 flex-1 px-2 pb-2">
           {playlists.map((playlist) => {
             const active = route.name === "playlist" && route.playlistId === playlist.id;
             const shared = groupName(playlist.groupId);

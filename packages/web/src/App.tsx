@@ -80,7 +80,8 @@ export default function App() {
   }, [route, health, cacheStates]);
 
   return (
-    <div className="flex h-full flex-col bg-base">
+    // 上端は端末のノッチ分を空ける。空けないと戻る操作が時計に潜り込む。
+    <div className="flex h-full flex-col bg-base pt-[env(safe-area-inset-top)]">
       <div className="flex min-h-0 flex-1 gap-2 p-2">
         <div className="hidden md:block">
           <Sidebar
@@ -93,7 +94,8 @@ export default function App() {
 
         <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-surface">
           <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-4 bg-surface/70 px-4 py-3 backdrop-blur sm:px-6">
-            <div className="flex items-center gap-2">
+            {/* 履歴の前後移動は下部ナビで足りるので、狭い画面では出さない。 */}
+            <div className="hidden items-center gap-2 md:flex">
               <button
                 type="button"
                 onClick={goBack}
@@ -144,7 +146,7 @@ export default function App() {
             </div>
           )}
 
-          <div className="min-h-0 flex-1 overflow-y-auto">{content}</div>
+          <div className="scroll-area min-h-0 flex-1">{content}</div>
         </main>
 
         {panelOpen && (

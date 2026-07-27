@@ -15,15 +15,16 @@ export function GroupsView({ groups, playlists, onNavigate }: Props) {
   const startMockSession = useSession((s) => s.startMockSession);
 
   return (
-    <div className="px-6 pt-20 pb-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">グループ</h1>
+    <div className="px-4 pt-20 pb-8 sm:px-6">
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">グループ</h1>
         <button
           type="button"
-          className="flex items-center gap-2 rounded-full bg-surface-3 px-4 py-2 text-sm font-medium transition hover:bg-line"
+          className="flex shrink-0 items-center gap-2 rounded-full bg-surface-3 px-4 py-2 text-sm font-medium transition hover:bg-line"
         >
           <Plus className="size-4" />
-          グループを作る
+          <span className="hidden sm:inline">グループを作る</span>
+          <span className="sm:hidden">作る</span>
         </button>
       </div>
 
@@ -35,8 +36,8 @@ export function GroupsView({ groups, playlists, onNavigate }: Props) {
             .filter((u): u is (typeof mockUsers)[number] => u !== undefined);
 
           return (
-            <section key={group.id} className="rounded-lg bg-surface p-5">
-              <div className="flex items-start justify-between gap-4">
+            <section key={group.id} className="rounded-lg bg-surface p-4 sm:p-5">
+              <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex min-w-0 items-center gap-4">
                   <Artwork
                     seed={group.id}
@@ -45,10 +46,12 @@ export function GroupsView({ groups, playlists, onNavigate }: Props) {
                     rounded="rounded-md"
                   />
                   <div className="min-w-0">
-                    <h2 className="truncate text-xl font-bold">{group.name}</h2>
+                    <h2 className="truncate text-lg font-bold sm:text-xl">{group.name}</h2>
                     <div className="mt-1 flex items-center gap-1.5 text-sm text-ink-muted">
-                      <Users className="size-4" />
-                      <span>{members.map((m) => m.displayName).join("、")}</span>
+                      <Users className="size-4 shrink-0" />
+                      <span className="truncate">
+                        {members.map((m) => m.displayName).join("、")}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -56,7 +59,7 @@ export function GroupsView({ groups, playlists, onNavigate }: Props) {
                 <button
                   type="button"
                   onClick={() => startMockSession(mockParticipants(members))}
-                  className="flex shrink-0 items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-accent-ink transition hover:brightness-110"
+                  className="flex shrink-0 items-center justify-center gap-2 rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink transition hover:brightness-110 sm:py-2"
                 >
                   <Radio className="size-4" />
                   一緒に聴く

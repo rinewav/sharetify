@@ -29,13 +29,31 @@ body,
   height: 100%;
 }
 
+/*
+ * ページ自体は動かさない。
+ *
+ * スマートフォンでは、内側の一覧をスクロールしたつもりがページごと持ち上がって
+ * 上下の固定要素まで一緒に流れてしまう。body を画面に固定してしまえば、
+ * スクロールするのは中の領域だけになる。
+ */
 body {
+  position: fixed;
+  inset: 0;
   margin: 0;
   background: var(--color-base);
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
+  /* 端末の実際の表示高さに合わせる。アドレスバーの出入りで狂わせない。 */
+  height: 100dvh;
+}
+
+/* 内側でスクロールする領域は、慣性が親に伝わらないようにする。 */
+@utility scroll-area {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* スクロールバーは主張させない。コンテンツに視線を残す。 */

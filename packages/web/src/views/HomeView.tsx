@@ -15,11 +15,14 @@ export function HomeView({ playlists, onNavigate }: Props) {
   const greeting = greetingForNow();
 
   return (
-    <div className="px-6 pt-20 pb-8">
-      <h1 className="text-3xl font-bold tracking-tight">{greeting}</h1>
+    <div className="px-4 pt-20 pb-8 sm:px-6">
+      <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{greeting}</h1>
 
-      {/* 横長タイル。よく開くものへの近道。 */}
-      <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-3">
+      {/*
+       * 横長タイル。よく開くものへの近道。
+       * 狭い画面で 2 列に詰めると、名前が 1 文字まで削られて用をなさない。
+       */}
+      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {playlists.slice(0, 6).map((playlist) => (
           <button
             key={playlist.id}
@@ -87,8 +90,8 @@ export function HomeView({ playlists, onNavigate }: Props) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-8">
-      <h2 className="mb-4 text-2xl font-bold tracking-tight">{title}</h2>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+      <h2 className="mb-4 text-xl font-bold tracking-tight sm:text-2xl">{title}</h2>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5 xl:grid-cols-6">
         {children}
       </div>
     </section>
@@ -114,7 +117,7 @@ function Card({
     <button
       type="button"
       onClick={onClick}
-      className="group relative rounded-lg bg-surface p-4 text-left transition hover:bg-surface-3"
+      className="group relative min-w-0 rounded-lg bg-surface p-3 text-left transition hover:bg-surface-3 sm:p-4"
     >
       <div className="relative">
         <Artwork
