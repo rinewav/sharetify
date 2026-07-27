@@ -1,4 +1,4 @@
-import { Clock3, Download, Play, Volume2 } from "lucide-react";
+import { Clock3, Download, Play, Plus, Volume2, X } from "lucide-react";
 import type { CacheState, CollectionKind, Track } from "@musicshare/shared";
 import { Artwork } from "./Artwork.js";
 import { formatDuration } from "../lib/format.js";
@@ -12,6 +12,10 @@ interface Props {
   showAlbum?: boolean;
   /** アーティスト名やアルバム名から、そのページへ移るための入口。 */
   onOpenCollection?: (kind: CollectionKind, id: string, title: string) => void;
+  /** プレイリストへ入れる。渡されたときだけ行に出す。 */
+  onAddTo?: (track: Track) => void;
+  /** このプレイリストから外す。渡されたときだけ行に出す。 */
+  onRemove?: (trackId: string) => void;
 }
 
 export function TrackList({
@@ -20,6 +24,8 @@ export function TrackList({
   onPlay,
   showAlbum = true,
   onOpenCollection,
+  onAddTo,
+  onRemove,
 }: Props) {
   const currentId = usePlayer((s) => s.current()?.id);
   const playing = usePlayer((s) => s.playing);
@@ -123,8 +129,22 @@ export function TrackList({
                 </span>
               )}
 
-              <div className="flex items-center justify-end gap-3 pr-2">
+              <div className="flex items-center justify-end gap-2 pr-2 sm:gap-3">
                 <CacheBadge state={cache} />
+                {onAddTo && (
+                  <RowAction
+                    label="プレイリストに追加"
+                    onClick={() => onAddTo(track)}
+                    icon={<Plus className="size-4" />}
+                  />
+                )}
+                {onRemove && (
+                  <RowAction
+                    label="このプレイリストから外す"
+                    onClick={() => onRemove(track.id)}
+                    icon={<X className="size-4" />}
+                  />
+                )}
                 <span className="text-sm tabular-nums text-ink-muted">
                   {formatDuration(track.durationMs)}
                 </span>
@@ -134,6 +154,39 @@ export function TrackList({
         })}
       </div>
     </div>
+  );
+}
+
+/** 行の中に置く小さな操作。行そのものの再生と取り違えないよう伝播を止める。 */
+function RowAction({
+  label,
+  onClick,
+  icon,
+}: {
+  label: string;
+  onClick: () => void;
+  icon: React.ReactNode;
+}) {
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      aria-label={label}
+      title={label}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter") return;
+        event.stopPropagation();
+        event.preventDefault();
+        onClick();
+      }}
+      className="cursor-pointer text-ink-faint transition hover:text-ink"
+    >
+      {icon}
+    </span>
   );
 }
 

@@ -1,16 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ChevronLeft, ChevronRight, Wifi, WifiOff } from "lucide-react";
-import type { CacheState, CollectionKind, NodeHealth } from "@musicshare/shared";
+import type { CacheState, CollectionKind, NodeHealth, Track } from "@musicshare/shared";
+import { AddToPlaylistSheet } from "./components/AddToPlaylistSheet.js";
 import { LayoutProbe, layoutProbeEnabled } from "./components/LayoutProbe.js";
 import { MobileNav } from "./components/MobileNav.js";
 import { PairingSheet, useAutoPairing } from "./components/PairingSheet.js";
 import { PlayerBar } from "./components/PlayerBar.js";
 import { QueuePanel } from "./components/QueuePanel.js";
 import { SessionPanel } from "./components/SessionPanel.js";
+import { SettingsSheet } from "./components/SettingsSheet.js";
+import { SignInSheet } from "./components/SignInSheet.js";
 import { Sidebar } from "./components/Sidebar.js";
 import { audioEngine } from "./lib/audio-engine.js";
-import { mockGroups, mockPlaylists } from "./lib/mock.js";
+import { storedToken } from "./lib/hub-client.js";
+import { useLibrary } from "./lib/library-store.js";
 import { nodeCacheStatus, nodeHealth } from "./lib/node-client.js";
+import { listCached } from "./lib/offline-cache.js";
 import { usePlayer } from "./lib/player-store.js";
 import { useSession } from "./lib/session-store.js";
 import type { Route } from "./lib/routes.js";
@@ -25,19 +30,27 @@ export default function App() {
   const [history, setHistory] = useState<Route[]>([]);
   const [future, setFuture] = useState<Route[]>([]);
   const [sessionPanelOpen, setSessionPanelOpen] = useState(false);
-
   const [pairingOpen, setPairingOpen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
+  const [signInOpen, setSignInOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [addingTrack, setAddingTrack] = useState<Track | null>(null);
 
   const sessionConnected = useSession((s) => s.connected);
   const playerError = usePlayer((s) => s.error);
+  const { user, playlistById, error: libraryError, refresh } = useLibrary();
 
-  // 前回つないだ相手がいれば、起動時に黙って繋ぎ直す。
   const peerStatus = useAutoPairing();
   const health = useNodeHealth(peerStatus);
   const cacheStates = useCacheStates(health?.ok === true);
 
   useAudioEngine();
+  useLibrarySync();
+
+  // まだ誰でもないなら名前を決めてもらう。共有には名前が要る。
+  useEffect(() => {
+    if (!storedToken()) setSignInOpen(true);
+  }, []);
 
   const navigate = (next: Route) => {
     setHistory((h) => [...h, route]);
@@ -75,16 +88,18 @@ export default function App() {
   const content = useMemo(() => {
     switch (route.name) {
       case "home":
-        return <HomeView playlists={mockPlaylists} onNavigate={navigate} />;
+        return <HomeView onNavigate={navigate} />;
       case "search":
         return (
           <SearchView
             cacheStates={cacheStates}
             health={health}
-            onNavigate={navigate}
             onOpenCollection={openCollection}
+            onAddTo={setAddingTrack}
           />
         );
+      case "groups":
+        return <GroupsView onNavigate={navigate} />;
       case "collection":
         return (
           <CollectionView
@@ -93,38 +108,39 @@ export default function App() {
             fallbackTitle={route.title}
             cacheStates={cacheStates}
             onOpenCollection={openCollection}
+            onAddTo={setAddingTrack}
           />
         );
-      case "groups":
-        return (
-          <GroupsView groups={mockGroups} playlists={mockPlaylists} onNavigate={navigate} />
-        );
       case "playlist": {
-        const playlist = mockPlaylists.find((p) => p.id === route.playlistId);
-        if (!playlist) return <div className="p-6 text-ink-muted">見つかりません</div>;
+        const playlist = playlistById(route.playlistId);
+        if (!playlist) {
+          return <div className="p-6 pt-24 text-ink-muted">見つかりません</div>;
+        }
         return (
-          <PlaylistView playlist={playlist} groups={mockGroups} cacheStates={cacheStates} />
+          <PlaylistView
+            playlist={playlist}
+            cacheStates={cacheStates}
+            onOpenCollection={openCollection}
+            onLeave={() => navigate({ name: "home" })}
+          />
         );
       }
     }
-  }, [route, health, cacheStates]);
+  }, [route, health, cacheStates, playlistById]);
+
+  const banner = playerError ?? libraryError ?? (health && !health.resolverReady ? health.resolverMessage : null);
 
   return (
     /*
      * 上端はノッチを避けて押し下げる。
-     * ただしホーム画面から起動した場合は表示領域が既に避けているので、
+     * ホーム画面から起動した場合は表示領域が既に避けているので、
      * pad-top-safe 側で足さないようにしてある。
      * 下端は画面に接する下部ナビが自分で避ける。
      */
     <div className="pad-top-safe flex h-full flex-col bg-base">
       <div className="flex min-h-0 flex-1 gap-2 p-2">
         <div className="hidden md:block">
-          <Sidebar
-            route={route}
-            onNavigate={navigate}
-            playlists={mockPlaylists}
-            groups={mockGroups}
-          />
+          <Sidebar route={route} onNavigate={navigate} />
         </div>
 
         <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-surface">
@@ -169,17 +185,22 @@ export default function App() {
                 )}
                 <span className="hidden sm:inline">{nodeOnline ? "自分の PC" : "つなぐ"}</span>
               </button>
-              <div className="grid size-8 place-items-center rounded-full bg-surface-3 text-xs font-semibold">
-                り
-              </div>
+              <button
+                type="button"
+                onClick={() => (user ? setSettingsOpen(true) : setSignInOpen(true))}
+                className="grid size-8 place-items-center rounded-full bg-surface-3 text-xs font-semibold transition hover:bg-line"
+                title={user ? user.displayName : "名前を決める"}
+              >
+                {user?.displayName.slice(0, 1) ?? "?"}
+              </button>
             </div>
           </header>
 
           {/* 取得系が壊れたら黙って無音にせず、理由を出す。 */}
-          {(playerError ?? (health && !health.resolverReady ? health.resolverMessage : null)) && (
+          {banner && (
             <div className="absolute inset-x-0 top-14 z-10 mx-4 flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200 sm:mx-6">
               <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-              <span>{playerError ?? health?.resolverMessage}</span>
+              <span>{banner}</span>
             </div>
           )}
 
@@ -227,6 +248,22 @@ export default function App() {
       />
 
       {pairingOpen && <PairingSheet onClose={() => setPairingOpen(false)} />}
+      {signInOpen && (
+        <SignInSheet
+          onClose={() => setSignInOpen(false)}
+          dismissible={Boolean(user)}
+        />
+      )}
+      {settingsOpen && (
+        <SettingsSheet
+          onClose={() => setSettingsOpen(false)}
+          onOpenPairing={() => setPairingOpen(true)}
+          nodeOnline={nodeOnline}
+        />
+      )}
+      {addingTrack && (
+        <AddToPlaylistSheet track={addingTrack} onClose={() => setAddingTrack(null)} />
+      )}
       {layoutProbeEnabled() && <LayoutProbe />}
     </div>
   );
@@ -254,6 +291,23 @@ function useAudioEngine(): void {
       document.removeEventListener("keydown", unlock, options);
     };
   }, []);
+}
+
+/** 書棚の中身を取り込む。他の端末で足した曲もここで入ってくる。 */
+function useLibrarySync(): void {
+  const refresh = useLibrary((s) => s.refresh);
+
+  useEffect(() => {
+    void refresh();
+    // 共有している相手が足したものを、開いたままでも拾えるようにする。
+    const timer = setInterval(() => void refresh(), 30_000);
+    const onFocus = () => void refresh();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [refresh]);
 }
 
 /**
@@ -286,22 +340,36 @@ function useNodeHealth(peerStatus: string): NodeHealth | null {
   return health;
 }
 
-/** どの曲が手元にあるか。ダウンロード中は動くので定期的に取り直す。 */
+/**
+ * どの曲がすぐ鳴らせるか。
+ * PC 側に置いてあるものと、この端末に残してあるものを合わせて見せる。
+ */
 function useCacheStates(online: boolean): Record<string, CacheState> {
   const [states, setStates] = useState<Record<string, CacheState>>({});
 
   useEffect(() => {
-    if (!online) return;
     let cancelled = false;
 
     const load = async () => {
-      try {
-        const { entries } = await nodeCacheStatus();
-        if (cancelled) return;
-        setStates(Object.fromEntries(entries.map((entry) => [entry.trackId, entry.state])));
-      } catch {
-        // 取れなくても再生自体はできる。次の周期で取り直す。
+      const merged: Record<string, CacheState> = {};
+
+      // 端末に残っているものは、PC が落ちていても鳴らせる。
+      for (const trackId of await listCached()) merged[trackId] = "ready";
+
+      if (online) {
+        try {
+          const { entries } = await nodeCacheStatus();
+          for (const entry of entries) {
+            // 手元にあるものを「取得中」で上書きしない。
+            if (merged[entry.trackId] === "ready" && entry.state !== "ready") continue;
+            merged[entry.trackId] = entry.state;
+          }
+        } catch {
+          // 取れなくても再生自体はできる。次の周期で取り直す。
+        }
       }
+
+      if (!cancelled) setStates(merged);
     };
 
     void load();

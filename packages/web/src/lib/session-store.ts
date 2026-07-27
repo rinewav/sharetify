@@ -10,6 +10,8 @@ import {
   type ServerMessage,
   type SessionControl,
 } from "@musicshare/shared";
+import { hubCreateSession, hubListSessions, storedToken } from "./hub-client.js";
+import { useLibrary } from "./library-store.js";
 import { usePlayer } from "./player-store.js";
 
 /**
@@ -39,14 +41,14 @@ interface SessionState {
   driftMs: number;
   myUserId: string | null;
 
-  connect: (baseUrl: string, token: string, userId: string) => void;
+  connect: (token: string, userId: string) => void;
   disconnect: () => void;
   joinSession: (sessionId: string) => void;
   leaveSession: () => void;
   control: (action: SessionControl) => void;
   reportReadiness: (trackId: string, ready: boolean, reason?: string) => void;
-  /** hub なしで UI を触るための仮の状態。 */
-  startMockSession: (participants: Participant[]) => void;
+  /** 集まりの中で始める。既に誰かが始めていればそこへ入る。 */
+  startForGroup: (groupId: string) => Promise<void>;
 }
 
 let socket: WebSocket | null = null;
@@ -62,10 +64,12 @@ export const useSession = create<SessionState>((set, get) => ({
   driftMs: 0,
   myUserId: null,
 
-  connect: (baseUrl, token, userId) => {
+  connect: (token, userId) => {
     get().disconnect();
 
-    const url = new URL("/ws", baseUrl);
+    // 中央へは同一オリジンの中継を通す。混在コンテンツで弾かれないため。
+    const base = import.meta.env["VITE_HUB_BASE"] ?? "/hub-api";
+    const url = new URL(`${base}/ws`, window.location.origin);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
     url.searchParams.set("token", token);
 
@@ -120,12 +124,41 @@ export const useSession = create<SessionState>((set, get) => ({
   reportReadiness: (trackId, ready, reason) =>
     sendMessage({ type: "session:readiness", trackId, ready, reason }),
 
-  startMockSession: (participants) => {
-    set({ participants, connected: true, driftMs: 12 });
-    const me = participants.find((p) => p.isHost);
-    usePlayer.getState().setSessionRole(true, me?.userId === get().myUserId || true);
+  startForGroup: async (groupId) => {
+    const token = storedToken();
+    const me = useLibrary.getState().user;
+    if (!token || !me) return;
+
+    if (!get().connected) get().connect(token, me.id);
+
+    try {
+      // 既に誰かが始めていればそこへ入る。二重に立てても意味がない。
+      const existing = await hubListSessions();
+      const found = existing.find((s) => s.groupId === groupId);
+      const session = found ?? (await hubCreateSession(groupId));
+
+      // 繋がりきる前に入ろうとしても届かないので、開くのを待つ。
+      await waitForOpen();
+      get().joinSession(session.id);
+    } catch (error) {
+      console.warn("[session]", error);
+    }
   },
 }));
+
+/** 中央との経路が開くのを待つ。 */
+function waitForOpen(timeoutMs = 5_000): Promise<void> {
+  if (socket?.readyState === WebSocket.OPEN) return Promise.resolve();
+  return new Promise((resolve) => {
+    const started = Date.now();
+    const timer = setInterval(() => {
+      if (socket?.readyState === WebSocket.OPEN || Date.now() - started > timeoutMs) {
+        clearInterval(timer);
+        resolve();
+      }
+    }, 100);
+  });
+}
 
 function sendMessage(message: ClientMessage): void {
   if (socket?.readyState !== WebSocket.OPEN) return;

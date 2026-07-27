@@ -1,11 +1,8 @@
 import type { Track } from "@musicshare/shared";
 import { attachBackend, usePlayer } from "./player-store.js";
-import {
-  artworkUrl,
-  canStreamDirectly,
-  fetchTrackObjectUrl,
-  streamUrl,
-} from "./node-client.js";
+import { artworkUrl, canStreamDirectly, fetchTrackBlob, streamUrl } from "./node-client.js";
+import { getCached, putCached } from "./offline-cache.js";
+import { trackProgressed, trackStarted } from "./scrobbler.js";
 
 /**
  * 実際の再生を担う層。
@@ -50,6 +47,8 @@ class AudioEngine {
   private playWhenUnlocked = false;
   /** 先読みを重ねて走らせないための目印。 */
   private prefetchingId: string | null = null;
+  /** 聴取記録に知らせ済みの曲。同じ曲で二度送らないための目印。 */
+  private announcedTrackId: string | null = null;
   private crossfading = false;
   private fadeTimers = new Set<ReturnType<typeof setInterval>>();
 
@@ -95,8 +94,15 @@ class AudioEngine {
 
     el.addEventListener("timeupdate", () => {
       if (index !== this.active) return;
-      usePlayer.getState().reportPosition(el.currentTime * 1000);
+      const positionMs = el.currentTime * 1000;
+      usePlayer.getState().reportPosition(positionMs);
       this.syncPositionState();
+
+      const track = usePlayer.getState().current();
+      if (track && Number.isFinite(el.duration)) {
+        trackProgressed(track, positionMs, el.duration * 1000);
+      }
+
       void this.considerCrossfade();
     });
 
@@ -115,6 +121,13 @@ class AudioEngine {
       player.reportLoading(false);
       player.reportError(null);
       this.syncMediaSession();
+
+      // 曲が変わった最初の一回だけ知らせる。再開のたびに送らない。
+      const track = player.current();
+      if (track && this.announcedTrackId !== track.id) {
+        this.announcedTrackId = track.id;
+        trackStarted(track);
+      }
     });
 
     el.addEventListener("pause", () => {
@@ -216,21 +229,36 @@ class AudioEngine {
       this.syncMediaSession();
     }
 
+
     this.releaseObjectUrl(deck);
 
     try {
+      // 手元にあるならそれで済ませる。取りに行かない分だけ速く、
+      // PC が落ちていても鳴らせるのはこの経路があるから。
+      const stored = await getCached(track.id);
+      if (stored) {
+        if (deck.trackId !== track.id) return false;
+        const url = URL.createObjectURL(stored);
+        deck.objectUrl = url;
+        deck.el.src = url;
+        deck.el.load();
+        return true;
+      }
+
       if (canStreamDirectly()) {
         // 中継経路では URL をそのまま渡せる。解決を待たないので頭出しが速い。
         deck.el.src = streamUrl(track.id);
       } else {
         // 直結では一度受け取りきる。待つあいだに曲が変わっていたら捨てる。
-        const url = await fetchTrackObjectUrl(track.id);
+        const { url, blob } = await fetchTrackBlob(track.id);
         if (deck.trackId !== track.id) {
           URL.revokeObjectURL(url);
           return false;
         }
         deck.objectUrl = url;
         deck.el.src = url;
+        // 受け取ったものは残す。次からは上の分岐で拾われる。
+        void putCached(track.id, blob);
       }
       deck.el.load();
       return true;

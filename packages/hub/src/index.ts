@@ -9,16 +9,26 @@ import {
   type LoginRequest,
   type LoginResponse,
   type MeResponse,
+  type Track,
 } from "@musicshare/shared";
 import {
+  addTrackToPlaylist,
+  canAccessPlaylist,
   createGroup,
   createPlaylist,
   createUser,
+  deletePlaylist,
+  getGroup,
+  getPlaylist,
   groupsForUser,
-  joinGroup,
+  joinGroupByCode,
+  leaveGroup,
   loadStore,
+  membersOf,
   playlistsForUser,
-  updatePlaylistTracks,
+  removeTrackFromPlaylist,
+  renameUser,
+  setPlaylistTracks,
   userForToken,
 } from "./store.js";
 import {
@@ -68,17 +78,35 @@ function requireUser(authorization: string | undefined) {
   return userForToken(token);
 }
 
+/** 集まりに表示用の名前を添えて返す。 */
+function withMembers(user: { id: string }) {
+  return groupsForUser(user.id).map((group) => ({ ...group, members: membersOf(group) }));
+}
+
 app.get("/api/me", (c) => {
   const user = requireUser(c.req.header("authorization"));
   if (!user) return c.json({ error: "unauthorized" }, 401);
 
   const response: MeResponse = {
     user,
-    groups: groupsForUser(user.id),
+    groups: withMembers(user),
     playlists: playlistsForUser(user.id),
   };
   return c.json(response);
 });
+
+app.patch("/api/me", async (c) => {
+  const user = requireUser(c.req.header("authorization"));
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+
+  const body = await c.req.json<{ displayName?: string }>().catch(() => null);
+  const displayName = body?.displayName?.trim();
+  if (!displayName) return c.json({ error: "displayName is required" }, 400);
+
+  return c.json(renameUser(user.id, displayName));
+});
+
+/* ------------------------------- グループ ------------------------------- */
 
 app.post("/api/groups", async (c) => {
   const user = requireUser(c.req.header("authorization"));
@@ -88,17 +116,35 @@ app.post("/api/groups", async (c) => {
   const name = body?.name?.trim();
   if (!name) return c.json({ error: "name is required" }, 400);
 
-  return c.json(createGroup(name, user.id));
+  const group = createGroup(name, user.id);
+  return c.json({ ...group, members: membersOf(group) });
 });
 
-app.post("/api/groups/:id/join", (c) => {
+app.post("/api/groups/join", async (c) => {
   const user = requireUser(c.req.header("authorization"));
   if (!user) return c.json({ error: "unauthorized" }, 401);
 
-  const group = joinGroup(c.req.param("id"), user.id);
-  if (!group) return c.json({ error: "group not found" }, 404);
-  return c.json(group);
+  const body = await c.req.json<{ code?: string }>().catch(() => null);
+  const code = body?.code?.trim();
+  if (!code) return c.json({ error: "code is required" }, 400);
+
+  const group = joinGroupByCode(code, user.id);
+  if (!group) return c.json({ error: "合言葉が違います。" }, 404);
+  return c.json({ ...group, members: membersOf(group) });
 });
+
+app.post("/api/groups/:id/leave", (c) => {
+  const user = requireUser(c.req.header("authorization"));
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+
+  const group = getGroup(c.req.param("id"));
+  if (!group?.memberIds.includes(user.id)) return c.json({ error: "group not found" }, 404);
+
+  leaveGroup(group.id, user.id);
+  return c.json({ ok: true });
+});
+
+/* ------------------------------ プレイリスト ------------------------------ */
 
 app.post("/api/playlists", async (c) => {
   const user = requireUser(c.req.header("authorization"));
@@ -110,6 +156,11 @@ app.post("/api/playlists", async (c) => {
   const name = body?.name?.trim();
   if (!name) return c.json({ error: "name is required" }, 400);
 
+  // 共有として作るなら、その集まりに入っている必要がある。
+  if (body?.groupId && !getGroup(body.groupId)?.memberIds.includes(user.id)) {
+    return c.json({ error: "group not found" }, 404);
+  }
+
   return c.json(
     createPlaylist({
       name,
@@ -120,16 +171,56 @@ app.post("/api/playlists", async (c) => {
   );
 });
 
-app.put("/api/playlists/:id/tracks", async (c) => {
+/** 触ってよい相手かを確かめてからプレイリストを渡す。 */
+function playlistFor(c: { req: { header: (n: string) => string | undefined; param: (n: string) => string } }) {
   const user = requireUser(c.req.header("authorization"));
-  if (!user) return c.json({ error: "unauthorized" }, 401);
+  if (!user) return { error: "unauthorized" as const, status: 401 as const };
 
-  const body = await c.req.json<{ trackIds?: string[] }>().catch(() => null);
-  if (!Array.isArray(body?.trackIds)) return c.json({ error: "trackIds is required" }, 400);
+  const playlist = getPlaylist(c.req.param("id"));
+  if (!playlist || !canAccessPlaylist(playlist, user.id)) {
+    return { error: "playlist not found" as const, status: 404 as const };
+  }
+  return { user, playlist };
+}
 
-  const playlist = updatePlaylistTracks(c.req.param("id"), body.trackIds);
-  if (!playlist) return c.json({ error: "playlist not found" }, 404);
-  return c.json(playlist);
+app.put("/api/playlists/:id/tracks", async (c) => {
+  const found = playlistFor(c);
+  if ("error" in found) return c.json({ error: found.error }, found.status);
+
+  const body = await c.req.json<{ tracks?: Track[] }>().catch(() => null);
+  if (!Array.isArray(body?.tracks)) return c.json({ error: "tracks is required" }, 400);
+
+  return c.json(setPlaylistTracks(found.playlist.id, body.tracks));
+});
+
+app.post("/api/playlists/:id/tracks", async (c) => {
+  const found = playlistFor(c);
+  if ("error" in found) return c.json({ error: found.error }, found.status);
+
+  const body = await c.req.json<{ track?: Track }>().catch(() => null);
+  if (!body?.track?.id) return c.json({ error: "track is required" }, 400);
+
+  return c.json(addTrackToPlaylist(found.playlist.id, body.track));
+});
+
+app.delete("/api/playlists/:id/tracks/:trackId", (c) => {
+  const found = playlistFor(c);
+  if ("error" in found) return c.json({ error: found.error }, found.status);
+
+  return c.json(removeTrackFromPlaylist(found.playlist.id, c.req.param("trackId")));
+});
+
+app.delete("/api/playlists/:id", (c) => {
+  const found = playlistFor(c);
+  if ("error" in found) return c.json({ error: found.error }, found.status);
+
+  // 消せるのは作った人だけ。共有でも他人のものは触らせない。
+  if (found.playlist.ownerId !== found.user.id) {
+    return c.json({ error: "作成者だけが削除できます。" }, 403);
+  }
+
+  deletePlaylist(found.playlist.id);
+  return c.json({ ok: true });
 });
 
 app.get("/api/sessions", (c) => {

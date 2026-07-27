@@ -1,24 +1,30 @@
 import { useEffect, useState } from "react";
 import { Download, Loader2, Search } from "lucide-react";
-import type { CacheState, CollectionKind, NodeHealth, SearchResponse } from "@musicshare/shared";
+import type {
+  CacheState,
+  CollectionKind,
+  NodeHealth,
+  SearchResponse,
+  Track,
+} from "@musicshare/shared";
 import { ResultCard } from "../components/ResultCard.js";
 import { TrackList } from "../components/TrackList.js";
 import { formatCount } from "../lib/format.js";
 import { nodeCache, nodeCollection, nodeSearch } from "../lib/node-client.js";
 import { usePlayer } from "../lib/player-store.js";
-import type { Route } from "../lib/routes.js";
 
 interface Props {
   cacheStates: Record<string, CacheState>;
   health: NodeHealth | null;
-  onNavigate: (route: Route) => void;
   onOpenCollection: (kind: CollectionKind, id: string, title: string) => void;
+  /** 曲をプレイリストへ入れる入口。 */
+  onAddTo: (track: Track) => void;
 }
 
 const EMPTY: SearchResponse = { tracks: [], albums: [], artists: [], playlists: [] };
 
 /** 曲だけでなく、アーティスト・アルバム・プレイリストも並べる。 */
-export function SearchView({ cacheStates, health, onNavigate, onOpenCollection }: Props) {
+export function SearchView({ cacheStates, health, onOpenCollection, onAddTo }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResponse>(EMPTY);
   const [error, setError] = useState<string | null>(null);
@@ -67,8 +73,7 @@ export function SearchView({ cacheStates, health, onNavigate, onOpenCollection }
     };
   }, [query, online]);
 
-  const open = (kind: CollectionKind, id: string, title: string) =>
-    onNavigate({ name: "collection", kind, id, title });
+  const open = onOpenCollection;
 
   /** 札の再生ボタン。開かずにその場でキューへ入れる。 */
   const playCollection = async (kind: CollectionKind, id: string) => {
@@ -169,6 +174,7 @@ export function SearchView({ cacheStates, health, onNavigate, onOpenCollection }
             onPlay={(index) => playQueue(tracks, index)}
             showAlbum={false}
             onOpenCollection={onOpenCollection}
+            onAddTo={onAddTo}
           />
         </section>
       )}

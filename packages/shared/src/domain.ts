@@ -90,7 +90,13 @@ export interface Playlist {
   /** 属するグループ。個人プレイリストなら undefined。 */
   groupId?: string;
   artworkUrl?: string;
-  trackIds: string[];
+  /*
+   * 曲は識別子だけでなく見出しごと持つ。
+   * 名前や演奏者は著作物そのものではないし、ここに無いと
+   * 一覧を出すたびに各自の PC へ問い合わせることになる。
+   * 音声は相変わらず通らない。
+   */
+  tracks: Track[];
   createdAt: string;
   updatedAt: string;
 }
@@ -107,7 +113,15 @@ export interface Group {
   name: string;
   memberIds: string[];
   ownerId: string;
+  /** 誘うときに渡す短い合言葉。識別子をそのまま伝えるより扱いやすい。 */
+  inviteCode: string;
   createdAt: string;
+}
+
+/** 表示用に名前を添えたメンバー。 */
+export interface GroupMember {
+  id: string;
+  displayName: string;
 }
 
 /** ダウンロード / オフラインキャッシュの状態。 */

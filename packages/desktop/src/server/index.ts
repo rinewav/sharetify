@@ -11,6 +11,7 @@ import {
   type NodeHealth,
   type ResolveResponse,
   type SearchResponse,
+  type Track,
 } from "@musicshare/shared";
 import {
   cachePathFor,
@@ -21,6 +22,16 @@ import {
   isCached,
   listEntries,
 } from "./cache.js";
+import {
+  beginLastfmAuth,
+  completeLastfmAuth,
+  disconnectLastfm,
+  lastfmStatus,
+  loadLastfmConfig,
+  scrobble,
+  setLastfmKeys,
+  updateNowPlaying,
+} from "./lastfm.js";
 import { PeerHost } from "./peer.js";
 import {
   fetchCollection,
@@ -189,7 +200,70 @@ export function createNodeApp(): Hono {
 
   app.get(NODE_ROUTES.cacheStatus, (c) => c.json({ entries: listEntries() }));
 
+  /* ------------------------------ 聴取記録 ------------------------------ */
+
+  app.get("/api/lastfm", (c) => c.json(lastfmStatus()));
+
+  app.post("/api/lastfm/keys", async (c) => {
+    const body = await c.req.json<{ apiKey?: string; apiSecret?: string }>().catch(() => null);
+    const apiKey = body?.apiKey?.trim();
+    const apiSecret = body?.apiSecret?.trim();
+    if (!apiKey || !apiSecret) return c.json({ error: "鍵と合言葉が必要です。" }, 400);
+
+    await setLastfmKeys(apiKey, apiSecret);
+    return c.json(lastfmStatus());
+  });
+
+  app.post("/api/lastfm/begin", async (c) => {
+    try {
+      return c.json(await beginLastfmAuth());
+    } catch (error) {
+      return c.json({ error: describeAny(error) }, 502);
+    }
+  });
+
+  app.post("/api/lastfm/complete", async (c) => {
+    const body = await c.req.json<{ token?: string }>().catch(() => null);
+    if (!body?.token) return c.json({ error: "token is required" }, 400);
+    try {
+      return c.json(await completeLastfmAuth(body.token));
+    } catch (error) {
+      return c.json({ error: describeAny(error) }, 502);
+    }
+  });
+
+  app.post("/api/lastfm/disconnect", async (c) => {
+    await disconnectLastfm();
+    return c.json(lastfmStatus());
+  });
+
+  app.post("/api/lastfm/nowplaying", async (c) => {
+    const body = await c.req.json<{ track?: Track }>().catch(() => null);
+    if (!body?.track) return c.json({ error: "track is required" }, 400);
+    try {
+      await updateNowPlaying(body.track);
+      return c.json({ ok: true });
+    } catch (error) {
+      return c.json({ error: describeAny(error) }, 502);
+    }
+  });
+
+  app.post("/api/lastfm/scrobble", async (c) => {
+    const body = await c.req.json<{ track?: Track; playedAt?: number }>().catch(() => null);
+    if (!body?.track) return c.json({ error: "track is required" }, 400);
+    try {
+      await scrobble(body.track, body.playedAt ?? Math.floor(Date.now() / 1000));
+      return c.json({ ok: true });
+    } catch (error) {
+      return c.json({ error: describeAny(error) }, 502);
+    }
+  });
+
   return app;
+}
+
+function describeAny(error: unknown): string {
+  return error instanceof Error ? error.message : "処理に失敗しました。";
 }
 
 /** ディスク上のファイルを Range 対応で返す。シークを効かせるために必要。 */
@@ -241,6 +315,7 @@ function isAllowedArtworkHost(hostname: string): boolean {
 
 export async function startNodeServer(port = NODE_DEFAULT_PORT) {
   await initCache();
+  await loadLastfmConfig();
   const app = createNodeApp();
 
   let host: PeerHost | null = null;

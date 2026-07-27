@@ -1,18 +1,30 @@
+import { useState } from "react";
 import { Home, Library, Plus, Search, Users } from "lucide-react";
-import type { Group, Playlist } from "@musicshare/shared";
 import { Artwork } from "./Artwork.js";
+import { useLibrary } from "../lib/library-store.js";
 import type { Route } from "../lib/routes.js";
 
 interface Props {
   route: Route;
   onNavigate: (route: Route) => void;
-  playlists: Playlist[];
-  groups: Group[];
 }
 
-export function Sidebar({ route, onNavigate, playlists, groups }: Props) {
+export function Sidebar({ route, onNavigate }: Props) {
+  const { playlists, groups, createPlaylist } = useLibrary();
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState("");
+
   const groupName = (groupId: string | undefined) =>
     groupId ? groups.find((g) => g.id === groupId)?.name : undefined;
+
+  const submit = async () => {
+    const value = name.trim();
+    if (!value) return;
+    const created = await createPlaylist({ name: value });
+    setName("");
+    setCreating(false);
+    if (created) onNavigate({ name: "playlist", playlistId: created.id });
+  };
 
   return (
     <nav className="flex h-full w-[260px] shrink-0 flex-col gap-2">
@@ -42,16 +54,13 @@ export function Sidebar({ route, onNavigate, playlists, groups }: Props) {
 
       <div className="flex min-h-0 flex-1 flex-col rounded-lg bg-surface">
         <div className="flex items-center justify-between px-4 py-3">
-          <button
-            type="button"
-            className="flex items-center gap-3 text-sm font-semibold text-ink-muted transition hover:text-ink"
-            onClick={() => onNavigate({ name: "home" })}
-          >
+          <span className="flex items-center gap-3 text-sm font-semibold text-ink-muted">
             <Library className="size-5" />
             ライブラリ
-          </button>
+          </span>
           <button
             type="button"
+            onClick={() => setCreating((open) => !open)}
             className="grid size-8 place-items-center rounded-full text-ink-muted transition hover:bg-surface-3 hover:text-ink"
             aria-label="プレイリストを作成"
           >
@@ -59,7 +68,29 @@ export function Sidebar({ route, onNavigate, playlists, groups }: Props) {
           </button>
         </div>
 
+        {creating && (
+          <div className="px-2 pb-2">
+            <input
+              value={name}
+              onChange={(event) => setName(event.target.value.slice(0, 40))}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") void submit();
+                if (event.key === "Escape") setCreating(false);
+              }}
+              placeholder="プレイリスト名"
+              autoFocus
+              className="w-full rounded-md bg-surface-3 px-3 py-2 text-sm outline-none placeholder:text-ink-faint focus:ring-2 focus:ring-accent/40"
+            />
+          </div>
+        )}
+
         <div className="no-scrollbar scroll-area min-h-0 flex-1 px-2 pb-2">
+          {playlists.length === 0 && !creating && (
+            <p className="px-2 py-4 text-xs text-ink-faint">
+              まだありません。＋ から作れます。
+            </p>
+          )}
+
           {playlists.map((playlist) => {
             const active = route.name === "playlist" && route.playlistId === playlist.id;
             const shared = groupName(playlist.groupId);
@@ -72,11 +103,16 @@ export function Sidebar({ route, onNavigate, playlists, groups }: Props) {
                   active ? "bg-surface-3" : "hover:bg-surface-2"
                 }`}
               >
-                <Artwork seed={playlist.id} label={playlist.name} className="size-11" />
+                <Artwork
+                  seed={playlist.id}
+                  label={playlist.name}
+                  src={playlist.tracks[0]?.artworkUrl}
+                  className="size-11"
+                />
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium">{playlist.name}</span>
                   <span className="block truncate text-xs text-ink-muted">
-                    {shared ? `共有 · ${shared}` : "プレイリスト"}
+                    {shared ? `共有 · ${shared}` : `${playlist.tracks.length} 曲`}
                   </span>
                 </span>
               </button>

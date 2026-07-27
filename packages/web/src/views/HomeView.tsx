@@ -1,29 +1,60 @@
-import { Play } from "lucide-react";
-import type { Playlist } from "@musicshare/shared";
+import { Play, Search } from "lucide-react";
 import { Artwork } from "../components/Artwork.js";
-import { mockTracks, tracksOf } from "../lib/mock.js";
+import { useLibrary } from "../lib/library-store.js";
 import { usePlayer } from "../lib/player-store.js";
 import type { Route } from "../lib/routes.js";
 
 interface Props {
-  playlists: Playlist[];
   onNavigate: (route: Route) => void;
 }
 
-export function HomeView({ playlists, onNavigate }: Props) {
+export function HomeView({ onNavigate }: Props) {
+  const { playlists, groups, user } = useLibrary();
   const playQueue = usePlayer((s) => s.playQueue);
-  const greeting = greetingForNow();
+
+  // 中身のあるものを先に出す。空の並びを上に置いても手掛かりにならない。
+  const filled = [...playlists].sort((a, b) => b.tracks.length - a.tracks.length);
+  const recent = [...playlists].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+
+  if (playlists.length === 0) {
+    return (
+      <div className="px-4 pt-20 pb-8 sm:px-6">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+          {greetingForNow()}
+          {user ? `、${user.displayName}` : ""}
+        </h1>
+        <div className="mt-8 rounded-lg bg-surface p-6">
+          <h2 className="text-lg font-semibold">まずは一曲さがす</h2>
+          <p className="mt-2 text-sm text-ink-muted">
+            検索して曲の行の ＋ を押すと、プレイリストに入れられます。
+            グループを作れば、その中で友だちと共有できます。
+          </p>
+          <button
+            type="button"
+            onClick={() => onNavigate({ name: "search" })}
+            className="mt-5 flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-accent-ink transition hover:brightness-110"
+          >
+            <Search className="size-4" />
+            検索へ
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 pt-20 pb-8 sm:px-6">
-      <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{greeting}</h1>
+      <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+        {greetingForNow()}
+        {user ? `、${user.displayName}` : ""}
+      </h1>
 
       {/*
        * 横長タイル。よく開くものへの近道。
        * 狭い画面で 2 列に詰めると、名前が 1 文字まで削られて用をなさない。
        */}
       <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {playlists.slice(0, 6).map((playlist) => (
+        {filled.slice(0, 6).map((playlist) => (
           <button
             key={playlist.id}
             type="button"
@@ -33,55 +64,45 @@ export function HomeView({ playlists, onNavigate }: Props) {
             <Artwork
               seed={playlist.id}
               label={playlist.name}
+              src={playlist.tracks[0]?.artworkUrl}
               className="size-16 text-2xl"
               rounded="rounded-none"
             />
             <span className="min-w-0 flex-1 truncate text-sm font-semibold">
               {playlist.name}
             </span>
-            <span
-              onClick={(event) => {
-                event.stopPropagation();
-                playQueue(tracksOf(playlist), 0);
-              }}
-              className="grid size-10 shrink-0 translate-y-1 place-items-center rounded-full bg-accent text-accent-ink opacity-0 shadow-lg transition group-hover:translate-y-0 group-hover:opacity-100"
-            >
-              <Play className="size-4 translate-x-px fill-current" />
-            </span>
+            {playlist.tracks.length > 0 && (
+              <span
+                onClick={(event) => {
+                  event.stopPropagation();
+                  playQueue(playlist.tracks, 0);
+                }}
+                className="grid size-10 shrink-0 translate-y-1 place-items-center rounded-full bg-accent text-accent-ink opacity-0 shadow-lg transition group-hover:translate-y-0 group-hover:opacity-100"
+              >
+                <Play className="size-4 translate-x-px fill-current" />
+              </span>
+            )}
           </button>
         ))}
       </div>
 
-      <Section title="最近聴いたもの">
-        {playlists.map((playlist) => (
-          <Card
-            key={playlist.id}
-            seed={playlist.id}
-            title={playlist.name}
-            subtitle={playlist.description ?? `${playlist.trackIds.length} 曲`}
-            onClick={() => onNavigate({ name: "playlist", playlistId: playlist.id })}
-            onPlay={() => playQueue(tracksOf(playlist), 0)}
-          />
-        ))}
-      </Section>
-
-      <Section title="よく聴くアーティスト">
-        {uniqueArtists().map((artist) => (
-          <Card
-            key={artist}
-            seed={artist}
-            title={artist}
-            subtitle="アーティスト"
-            round
-            onClick={() => onNavigate({ name: "search" })}
-            onPlay={() =>
-              playQueue(
-                mockTracks.filter((t) => t.artist === artist),
-                0,
-              )
-            }
-          />
-        ))}
+      <Section title="最近さわったもの">
+        {recent.map((playlist) => {
+          const group = playlist.groupId
+            ? groups.find((g) => g.id === playlist.groupId)
+            : undefined;
+          return (
+            <Card
+              key={playlist.id}
+              seed={playlist.id}
+              title={playlist.name}
+              subtitle={group ? `共有 · ${group.name}` : `${playlist.tracks.length} 曲`}
+              artworkUrl={playlist.tracks[0]?.artworkUrl}
+              onClick={() => onNavigate({ name: "playlist", playlistId: playlist.id })}
+              onPlay={() => playQueue(playlist.tracks, 0)}
+            />
+          );
+        })}
       </Section>
     </div>
   );
@@ -102,16 +123,16 @@ function Card({
   seed,
   title,
   subtitle,
+  artworkUrl,
   onClick,
   onPlay,
-  round = false,
 }: {
   seed: string;
   title: string;
   subtitle: string;
+  artworkUrl?: string;
   onClick: () => void;
   onPlay: () => void;
-  round?: boolean;
 }) {
   return (
     <button
@@ -123,15 +144,16 @@ function Card({
         <Artwork
           seed={seed}
           label={title}
-          className="aspect-square w-full text-5xl"
-          rounded={round ? "rounded-full" : "rounded-md"}
+          src={artworkUrl}
+          className="aspect-square w-full text-4xl sm:text-5xl"
+          rounded="rounded-md"
         />
         <span
           onClick={(event) => {
             event.stopPropagation();
             onPlay();
           }}
-          className="absolute right-2 bottom-2 grid size-11 translate-y-2 place-items-center rounded-full bg-accent text-accent-ink opacity-0 shadow-xl transition group-hover:translate-y-0 group-hover:opacity-100"
+          className="absolute right-2 bottom-2 grid size-10 translate-y-2 place-items-center rounded-full bg-accent text-accent-ink opacity-0 shadow-xl transition group-hover:translate-y-0 group-hover:opacity-100 sm:size-11"
         >
           <Play className="size-4 translate-x-px fill-current" />
         </span>
@@ -140,10 +162,6 @@ function Card({
       <div className="mt-1 truncate text-xs text-ink-muted">{subtitle}</div>
     </button>
   );
-}
-
-function uniqueArtists(): string[] {
-  return [...new Set(mockTracks.map((t) => t.artist))];
 }
 
 function greetingForNow(): string {

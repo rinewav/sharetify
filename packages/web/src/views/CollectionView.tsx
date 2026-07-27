@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { Download, Loader2, Play, Shuffle } from "lucide-react";
-import type { CacheState, CollectionKind, CollectionResponse } from "@musicshare/shared";
+import type {
+  CacheState,
+  CollectionKind,
+  CollectionResponse,
+  Track,
+} from "@musicshare/shared";
 import { Artwork } from "../components/Artwork.js";
 import { TrackList } from "../components/TrackList.js";
 import { formatCount, formatTotalDuration } from "../lib/format.js";
@@ -14,6 +19,8 @@ interface Props {
   fallbackTitle?: string;
   cacheStates: Record<string, CacheState>;
   onOpenCollection: (kind: CollectionKind, id: string, title: string) => void;
+  /** 曲をプレイリストへ入れる入口。 */
+  onAddTo: (track: Track) => void;
 }
 
 /** 検索から開いたアルバム・プレイリスト・アーティストの中身。 */
@@ -23,6 +30,7 @@ export function CollectionView({
   fallbackTitle,
   cacheStates,
   onOpenCollection,
+  onAddTo,
 }: Props) {
   const [data, setData] = useState<CollectionResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -148,6 +156,7 @@ export function CollectionView({
             onPlay={(index) => playQueue(tracks, index)}
             showAlbum={kind !== "album"}
             onOpenCollection={onOpenCollection}
+            onAddTo={onAddTo}
           />
         </div>
       )}

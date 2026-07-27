@@ -103,14 +103,85 @@ export function canStreamDirectly(): boolean {
 }
 
 /** 直結のときに、曲を受け取って再生できる形にする。 */
-export async function fetchTrackObjectUrl(trackId: string): Promise<string> {
+export async function fetchTrackBlob(trackId: string): Promise<{ url: string; blob: Blob }> {
   const reply = await peerClient.request(
     { method: "GET", path: `/api/stream?trackId=${encodeURIComponent(trackId)}`, binary: true },
     5 * 60_000,
   );
   if (reply.error) throw new Error(reply.error);
   if (!reply.body) throw new Error("音声を受け取れませんでした。");
-  return URL.createObjectURL(reply.body);
+  return { url: URL.createObjectURL(reply.body), blob: reply.body };
+}
+
+/**
+ * 端末に残すために取ってくる。
+ * 経路がどちらでも同じように扱えるよう、ここで吸収する。
+ */
+export async function fetchTrackForOffline(trackId: string): Promise<Blob> {
+  if (viaPeer()) {
+    const { url, blob } = await fetchTrackBlob(trackId);
+    URL.revokeObjectURL(url);
+    return blob;
+  }
+  const response = await fetch(streamUrl(trackId));
+  if (!response.ok) throw new Error("曲を取得できませんでした。");
+  return await response.blob();
+}
+
+/* ------------------------------ 聴取記録 ------------------------------ */
+
+export interface LastfmStatus {
+  configured: boolean;
+  connected: boolean;
+  username?: string;
+}
+
+async function post<T>(path: string, body?: unknown): Promise<T> {
+  if (viaPeer()) {
+    const reply = await peerClient.request({ method: "POST", path, body });
+    if (reply.error) throw new Error(reply.error);
+    if (reply.status >= 400) throw new Error(describeStatus(reply.status, reply.json));
+    return reply.json as T;
+  }
+
+  const response = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!response.ok) {
+    const failure = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(failure?.error ?? `リクエストに失敗しました (${response.status})`);
+  }
+  return (await response.json()) as T;
+}
+
+export function lastfmStatus(): Promise<LastfmStatus> {
+  return getJson<LastfmStatus>("/api/lastfm");
+}
+
+export function lastfmSetKeys(apiKey: string, apiSecret: string): Promise<LastfmStatus> {
+  return post<LastfmStatus>("/api/lastfm/keys", { apiKey, apiSecret });
+}
+
+export function lastfmBegin(): Promise<{ token: string; authUrl: string }> {
+  return post<{ token: string; authUrl: string }>("/api/lastfm/begin");
+}
+
+export function lastfmComplete(token: string): Promise<{ username: string }> {
+  return post<{ username: string }>("/api/lastfm/complete", { token });
+}
+
+export function lastfmDisconnect(): Promise<LastfmStatus> {
+  return post<LastfmStatus>("/api/lastfm/disconnect");
+}
+
+export function lastfmNowPlaying(track: unknown): Promise<{ ok: boolean }> {
+  return post<{ ok: boolean }>("/api/lastfm/nowplaying", { track });
+}
+
+export function lastfmScrobble(track: unknown, playedAt: number): Promise<{ ok: boolean }> {
+  return post<{ ok: boolean }>("/api/lastfm/scrobble", { track, playedAt });
 }
 
 /**

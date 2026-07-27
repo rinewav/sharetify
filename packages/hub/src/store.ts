@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { randomUUID } from "node:crypto";
-import type { Group, Playlist, User } from "@musicshare/shared";
+import { randomBytes, randomUUID } from "node:crypto";
+import type { Group, GroupMember, Playlist, Track, User } from "@musicshare/shared";
 
 /**
  * 素朴な JSON ファイル永続化。
@@ -24,6 +24,16 @@ const empty: Snapshot = { users: [], groups: [], playlists: [], tokens: {} };
 let snapshot: Snapshot = structuredClone(empty);
 let writeQueue: Promise<void> = Promise.resolve();
 
+/** 紛らわしい文字を外した英数字。口頭で伝えても取り違えない。 */
+const CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+
+function makeCode(length = 6): string {
+  const bytes = randomBytes(length);
+  let code = "";
+  for (let i = 0; i < length; i += 1) code += CODE_ALPHABET[bytes[i]! % CODE_ALPHABET.length];
+  return code;
+}
+
 export async function loadStore(): Promise<void> {
   try {
     const raw = await readFile(DATA_PATH, "utf8");
@@ -40,6 +50,8 @@ function persist(): void {
     await writeFile(DATA_PATH, JSON.stringify(snapshot, null, 2), "utf8");
   });
 }
+
+/* -------------------------------- 利用者 -------------------------------- */
 
 export function createUser(displayName: string): { user: User; token: string } {
   const user: User = { id: randomUUID(), displayName };
@@ -61,6 +73,16 @@ export function getUser(id: string): User | undefined {
   return snapshot.users.find((u) => u.id === id);
 }
 
+export function renameUser(id: string, displayName: string): User | undefined {
+  const user = getUser(id);
+  if (!user) return undefined;
+  user.displayName = displayName;
+  persist();
+  return user;
+}
+
+/* ------------------------------- グループ ------------------------------- */
+
 export function groupsForUser(userId: string): Group[] {
   return snapshot.groups.filter((g) => g.memberIds.includes(userId));
 }
@@ -71,6 +93,7 @@ export function createGroup(name: string, ownerId: string): Group {
     name,
     ownerId,
     memberIds: [ownerId],
+    inviteCode: makeCode(),
     createdAt: new Date().toISOString(),
   };
   snapshot.groups.push(group);
@@ -82,8 +105,9 @@ export function getGroup(id: string): Group | undefined {
   return snapshot.groups.find((g) => g.id === id);
 }
 
-export function joinGroup(groupId: string, userId: string): Group | undefined {
-  const group = getGroup(groupId);
+/** 合言葉で参加する。識別子を直接渡すより誘いやすい。 */
+export function joinGroupByCode(code: string, userId: string): Group | undefined {
+  const group = snapshot.groups.find((g) => g.inviteCode === code.trim().toUpperCase());
   if (!group) return undefined;
   if (!group.memberIds.includes(userId)) {
     group.memberIds.push(userId);
@@ -91,6 +115,34 @@ export function joinGroup(groupId: string, userId: string): Group | undefined {
   }
   return group;
 }
+
+export function leaveGroup(groupId: string, userId: string): boolean {
+  const group = getGroup(groupId);
+  if (!group) return false;
+
+  group.memberIds = group.memberIds.filter((id) => id !== userId);
+
+  // 誰もいなくなった集まりは、そこにあった共有プレイリストごと片付ける。
+  if (group.memberIds.length === 0) {
+    snapshot.groups = snapshot.groups.filter((g) => g.id !== groupId);
+    snapshot.playlists = snapshot.playlists.filter((p) => p.groupId !== groupId);
+  } else if (group.ownerId === userId) {
+    group.ownerId = group.memberIds[0]!;
+  }
+
+  persist();
+  return true;
+}
+
+/** 表示用にメンバーの名前を添える。 */
+export function membersOf(group: Group): GroupMember[] {
+  return group.memberIds.map((id) => ({
+    id,
+    displayName: getUser(id)?.displayName ?? "不明",
+  }));
+}
+
+/* ------------------------------ プレイリスト ------------------------------ */
 
 export function playlistsForUser(userId: string): Playlist[] {
   const groupIds = new Set(groupsForUser(userId).map((g) => g.id));
@@ -112,7 +164,7 @@ export function createPlaylist(input: {
     description: input.description,
     ownerId: input.ownerId,
     groupId: input.groupId,
-    trackIds: [],
+    tracks: [],
     createdAt: now,
     updatedAt: now,
   };
@@ -125,11 +177,47 @@ export function getPlaylist(id: string): Playlist | undefined {
   return snapshot.playlists.find((p) => p.id === id);
 }
 
-export function updatePlaylistTracks(id: string, trackIds: string[]): Playlist | undefined {
+/** 見える相手かどうか。共有プレイリストは同じ集まりの人なら触れる。 */
+export function canAccessPlaylist(playlist: Playlist, userId: string): boolean {
+  if (playlist.ownerId === userId) return true;
+  if (!playlist.groupId) return false;
+  return getGroup(playlist.groupId)?.memberIds.includes(userId) ?? false;
+}
+
+export function setPlaylistTracks(id: string, tracks: Track[]): Playlist | undefined {
   const playlist = getPlaylist(id);
   if (!playlist) return undefined;
-  playlist.trackIds = trackIds;
+  playlist.tracks = tracks;
   playlist.updatedAt = new Date().toISOString();
   persist();
   return playlist;
+}
+
+export function addTrackToPlaylist(id: string, track: Track): Playlist | undefined {
+  const playlist = getPlaylist(id);
+  if (!playlist) return undefined;
+  // 同じ曲を二度入れない。共有だと誰かが既に足していることがある。
+  if (!playlist.tracks.some((t) => t.id === track.id)) {
+    playlist.tracks.push(track);
+    playlist.updatedAt = new Date().toISOString();
+    persist();
+  }
+  return playlist;
+}
+
+export function removeTrackFromPlaylist(id: string, trackId: string): Playlist | undefined {
+  const playlist = getPlaylist(id);
+  if (!playlist) return undefined;
+  playlist.tracks = playlist.tracks.filter((t) => t.id !== trackId);
+  playlist.updatedAt = new Date().toISOString();
+  persist();
+  return playlist;
+}
+
+export function deletePlaylist(id: string): boolean {
+  const before = snapshot.playlists.length;
+  snapshot.playlists = snapshot.playlists.filter((p) => p.id !== id);
+  const removed = snapshot.playlists.length !== before;
+  if (removed) persist();
+  return removed;
 }
