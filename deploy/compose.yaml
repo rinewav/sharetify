@@ -1,6 +1,7 @@
 # MiniServer で中央サーバーを走らせるための構成。
 #
-# 外へは Cloudflare のトンネル越しにだけ出す。
+# 外に出す役 (cloudflared) は既にこの機械で動いているので、
+# ここでは中央サーバーだけを立て、その役から見える所に置く。
 # 直接ポートを開けないので、家の回線に穴を空けずに済む。
 
 services:
@@ -15,22 +16,12 @@ services:
       PORT: "47820"
     volumes:
       # 覚えておくもの (利用者・集まり・並び) はここに残る。
+      # 入れ物を作り直しても消えない。
       - hub-data:/app/data
-    # トンネル役と同じ網の中だけで話す。外には自分で出さない。
-    networks: [sharetify]
-    expose: ["47820"]
-
-  tunnel:
-    image: cloudflare/cloudflared:latest
-    container_name: sharetify-tunnel
-    restart: unless-stopped
-    # 合言葉は .env に置く。リポジトリには入れない。
-    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
-    depends_on: [hub]
-    networks: [sharetify]
+    # 同じ機械の中からだけ届く所に出す。
+    # 外へは、既に動いている外向きの役が取り次ぐ。
+    ports:
+      - "127.0.0.1:47820:47820"
 
 volumes:
   hub-data:
-
-networks:
-  sharetify:
