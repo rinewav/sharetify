@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Check, ChevronDown, Loader2, Play, Plus, Shuffle } from "lucide-react";
-import type { CacheState, CollectionKind, CollectionResponse, Track } from "@musicshare/shared";
+import type { CacheState, CollectionKind, CollectionResponse, Track } from "@sharetify/shared";
 import { Artwork } from "../components/Artwork.js";
 import type { MenuItem } from "../components/ContextMenu.js";
 import { ResultCard } from "../components/ResultCard.js";

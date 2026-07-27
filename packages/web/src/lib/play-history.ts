@@ -1,4 +1,4 @@
-import type { Track } from "@musicshare/shared";
+import type { Track } from "@sharetify/shared";
 
 /**
  * 何をいつ聴いたかの控え。
@@ -11,7 +11,7 @@ import type { Track } from "@musicshare/shared";
  * 手掛かりだけこちらで決めて、あとは供給元の推薦に委ねる。
  */
 
-const STORAGE_KEY = "musicshare.history";
+const STORAGE_KEY = "sharetify.history";
 /** 残す件数。古いものから落とす。 */
 const MAX_ENTRIES = 3000;
 /** これ未満しか鳴っていない曲は「聴いた」と数えない。 */

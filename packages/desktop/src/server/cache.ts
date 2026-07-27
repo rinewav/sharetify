@@ -2,7 +2,7 @@ import { mkdir, readdir, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { CacheEntry, CacheState } from "@musicshare/shared";
+import type { CacheEntry, CacheState } from "@sharetify/shared";
 import { downloadToFile, ResolverFailure } from "./resolver.js";
 
 /**
@@ -12,7 +12,7 @@ import { downloadToFile, ResolverFailure } from "./resolver.js";
  * キャッシュは「おまけ」ではなく再生経路の一部として扱う。
  */
 
-const CACHE_DIR = join(homedir(), ".musicshare", "cache");
+const CACHE_DIR = join(homedir(), ".sharetify", "cache");
 const entries = new Map<string, CacheEntry>();
 
 export async function initCache(): Promise<void> {

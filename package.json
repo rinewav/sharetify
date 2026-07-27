@@ -1,13 +1,13 @@
 {
-  "name": "musicshare",
+  "name": "sharetify",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.4.0",
   "scripts": {
     "dev": "pnpm --parallel --filter \"./packages/*\" dev",
-    "dev:hub": "pnpm --filter @musicshare/hub dev",
-    "dev:web": "pnpm --filter @musicshare/web dev",
-    "dev:desktop": "pnpm --filter @musicshare/desktop dev",
+    "dev:hub": "pnpm --filter @sharetify/hub dev",
+    "dev:web": "pnpm --filter @sharetify/web dev",
+    "dev:desktop": "pnpm --filter @sharetify/desktop dev",
     "build": "pnpm --filter \"./packages/*\" build",
     "typecheck": "pnpm --filter \"./packages/*\" typecheck"
   },

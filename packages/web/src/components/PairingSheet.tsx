@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Laptop, Loader2, X } from "lucide-react";
-import { PAIR_CODE_LENGTH } from "@musicshare/shared";
+import { PAIR_CODE_LENGTH } from "@sharetify/shared";
 import { Sheet } from "./Sheet.js";
 import { peerClient, type PeerStatus } from "../lib/peer-client.js";
 
-const STORED_CODE_KEY = "musicshare.pair-code";
+const STORED_CODE_KEY = "sharetify.pair-code";
 
 interface Props {
   onClose: () => void;

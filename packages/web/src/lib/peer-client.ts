@@ -6,7 +6,7 @@ import {
   type GuestMessage,
   type PeerControl,
   type PeerRequest,
-} from "@musicshare/shared";
+} from "@sharetify/shared";
 
 /**
  * 合言葉で自分の PC につなぐ側。

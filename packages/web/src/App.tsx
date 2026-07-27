@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ChevronLeft, ChevronRight, Wifi, WifiOff } from "lucide-react";
-import type { CacheState, CollectionKind, NodeHealth, Track } from "@musicshare/shared";
+import type { CacheState, CollectionKind, NodeHealth, Track } from "@sharetify/shared";
 import { AddToPlaylistSheet } from "./components/AddToPlaylistSheet.js";
 import { LayoutProbe, layoutProbeEnabled } from "./components/LayoutProbe.js";
 import { MobileNav } from "./components/MobileNav.js";

@@ -1,5 +1,5 @@
 import { Download, Heart, Play, Shuffle } from "lucide-react";
-import type { CacheState, CollectionKind } from "@musicshare/shared";
+import type { CacheState, CollectionKind } from "@sharetify/shared";
 import { TrackList } from "../components/TrackList.js";
 import { formatTotalDuration } from "../lib/format.js";
 import { useLibrary } from "../lib/library-store.js";

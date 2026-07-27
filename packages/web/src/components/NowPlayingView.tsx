@@ -12,7 +12,7 @@ import {
   SkipBack,
   SkipForward,
 } from "lucide-react";
-import type { CollectionKind } from "@musicshare/shared";
+import type { CollectionKind } from "@sharetify/shared";
 import { Artwork } from "./Artwork.js";
 import { LyricsPane } from "./LyricsPane.js";
 import { ProgressBar } from "./ProgressBar.js";

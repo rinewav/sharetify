@@ -13,7 +13,7 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
-import type { CollectionKind, Track } from "@musicshare/shared";
+import type { CollectionKind, Track } from "@sharetify/shared";
 import { ContextMenu, type MenuItem } from "../components/ContextMenu.js";
 import { useLibrary } from "./library-store.js";
 import { usePlayer } from "./player-store.js";

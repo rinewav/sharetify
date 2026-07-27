@@ -1,4 +1,4 @@
-import type { Track } from "@musicshare/shared";
+import type { Track } from "@sharetify/shared";
 import { lastfmNowPlaying, lastfmScrobble } from "./node-client.js";
 import { recordPlay } from "./play-history.js";
 

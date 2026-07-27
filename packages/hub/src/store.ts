@@ -9,7 +9,7 @@ import type {
   Playlist,
   Track,
   User,
-} from "@musicshare/shared";
+} from "@sharetify/shared";
 
 /**
  * 素朴な JSON ファイル永続化。

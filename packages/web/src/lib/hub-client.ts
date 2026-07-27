@@ -7,7 +7,7 @@ import type {
   Playlist,
   Track,
   User,
-} from "@musicshare/shared";
+} from "@sharetify/shared";
 
 /**
  * 中央サーバーとのやり取り。
@@ -17,7 +17,7 @@ import type {
  */
 
 const BASE = import.meta.env["VITE_HUB_BASE"] ?? "/hub-api";
-const TOKEN_KEY = "musicshare.hub-token";
+const TOKEN_KEY = "sharetify.hub-token";
 
 export function storedToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);

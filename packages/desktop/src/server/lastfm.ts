@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import type { Track } from "@musicshare/shared";
+import type { Track } from "@sharetify/shared";
 
 /**
  * 聴いた記録を外部の集計サービスへ送る。
@@ -15,7 +15,7 @@ import type { Track } from "@musicshare/shared";
  */
 
 const API_ROOT = "https://ws.audioscrobbler.com/2.0/";
-const CONFIG_PATH = join(homedir(), ".musicshare", "lastfm.json");
+const CONFIG_PATH = join(homedir(), ".sharetify", "lastfm.json");
 
 interface Config {
   apiKey?: string;

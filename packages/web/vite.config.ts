@@ -2,19 +2,19 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-const NODE_TARGET = process.env.MUSICSHARE_NODE_URL ?? "http://127.0.0.1:47821";
-const HUB_TARGET = process.env.MUSICSHARE_HUB_URL ?? "http://127.0.0.1:47820";
+const NODE_TARGET = process.env.SHARETIFY_NODE_URL ?? "http://127.0.0.1:47821";
+const HUB_TARGET = process.env.SHARETIFY_HUB_URL ?? "http://127.0.0.1:47820";
 
 /*
  * 実機から HTTPS で入ってくる場合のホスト名とポート。
  * 指定すると、更新の通知 (HMR) の接続先をそちらに向ける。
  * 指定がなければ従来どおりローカル向けの設定で動く。
  *
- *   MUSICSHARE_PUBLIC_HOST=my-machine.tailnet.ts.net
- *   MUSICSHARE_PUBLIC_PORT=8443
+ *   SHARETIFY_PUBLIC_HOST=my-machine.tailnet.ts.net
+ *   SHARETIFY_PUBLIC_PORT=8443
  */
-const PUBLIC_HOST = process.env.MUSICSHARE_PUBLIC_HOST;
-const PUBLIC_PORT = Number(process.env.MUSICSHARE_PUBLIC_PORT ?? 8443);
+const PUBLIC_HOST = process.env.SHARETIFY_PUBLIC_HOST;
+const PUBLIC_PORT = Number(process.env.SHARETIFY_PUBLIC_PORT ?? 8443);
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],

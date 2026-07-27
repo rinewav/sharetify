@@ -1,4 +1,4 @@
-# musicshare
+# sharetify
 
 友だちとプレイリストを共有して、同じ曲を同じ位置で一緒に聴くための音楽クライアント。
 
@@ -113,7 +113,7 @@ pnpm install
 
 ```bash
 # 自分の PC の node サーバー (音声の取得を担う。これがないと何も鳴らない)
-pnpm --filter @musicshare/desktop dev
+pnpm --filter @sharetify/desktop dev
 
 # PWA (http://localhost:5273)
 pnpm dev:web
@@ -122,7 +122,7 @@ pnpm dev:web
 pnpm dev:hub
 
 # デスクトップアプリごと起動する場合
-pnpm --filter @musicshare/desktop dev:electron
+pnpm --filter @sharetify/desktop dev:electron
 ```
 
 画面側は node と hub を同一オリジンに中継している（`/node-api`, `/hub-api`）。
@@ -141,8 +141,8 @@ tailscale serve --bg --https=8443 http://127.0.0.1:5273
 
 - Node.js 22 以上
 - pnpm
-- ストリーム解決用の CLI（`MUSICSHARE_RESOLVER` で変更可。既定は PATH 上の `yt-dlp`）
-- Python 3 と `ytmusicapi`（`MUSICSHARE_PYTHON` で変更可。既定は `python3`）
+- ストリーム解決用の CLI（`SHARETIFY_RESOLVER` で変更可。既定は PATH 上の `yt-dlp`）
+- Python 3 と `ytmusicapi`（`SHARETIFY_PYTHON` で変更可。既定は `python3`）
 
 ```bash
 pip install ytmusicapi

@@ -8,7 +8,7 @@ import type {
   RadioResponse,
   SearchResponse,
   Track,
-} from "@musicshare/shared";
+} from "@sharetify/shared";
 
 /**
  * ストリーム解決。
@@ -20,8 +20,8 @@ import type {
  * 壊れたときに「なぜか無音」にならないよう、失敗は必ず理由付きで返す。
  */
 
-const RESOLVER_BIN = process.env.MUSICSHARE_RESOLVER ?? "yt-dlp";
-const PYTHON_BIN = process.env.MUSICSHARE_PYTHON ?? "python3";
+const RESOLVER_BIN = process.env.SHARETIFY_RESOLVER ?? "yt-dlp";
+const PYTHON_BIN = process.env.SHARETIFY_PYTHON ?? "python3";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 /** カタログ検索スクリプトの場所。 */

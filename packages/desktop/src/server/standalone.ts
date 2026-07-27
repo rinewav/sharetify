@@ -1,4 +1,4 @@
-import { NODE_DEFAULT_PORT } from "@musicshare/shared";
+import { NODE_DEFAULT_PORT } from "@sharetify/shared";
 import { startNodeServer } from "./index.js";
 
 /** Electron を起動せずに node サーバーだけ動かす開発用エントリ。 */

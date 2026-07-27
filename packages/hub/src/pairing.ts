@@ -7,7 +7,7 @@ import {
   type GuestMessage,
   type HostEvent,
   type HostMessage,
-} from "@musicshare/shared";
+} from "@sharetify/shared";
 
 /**
  * 引き合わせ役。

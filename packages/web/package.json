@@ -1,5 +1,5 @@
 {
-  "name": "@musicshare/web",
+  "name": "@sharetify/web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@musicshare/shared": "workspace:*",
+    "@sharetify/shared": "workspace:*",
     "lucide-react": "^0.469.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

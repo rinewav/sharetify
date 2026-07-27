@@ -30,7 +30,16 @@ export function Sidebar({ route, onNavigate }: Props) {
     <nav className="flex h-full w-[260px] shrink-0 flex-col gap-2">
       <div className="rounded-lg bg-surface p-2">
         <div className="px-3 pt-3 pb-4">
-          <span className="text-lg font-bold tracking-tight">musicshare</span>
+          <span className="flex items-center gap-2.5">
+            <img
+              src="/icons/icon-192.png"
+              alt=""
+              className="size-7 rounded-md"
+              width={28}
+              height={28}
+            />
+            <span className="text-lg font-bold tracking-tight">Sharetify</span>
+          </span>
         </div>
         <NavItem
           icon={<Home className="size-5" />}

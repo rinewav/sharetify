@@ -1,5 +1,5 @@
 {
-  "name": "@musicshare/desktop",
+  "name": "@sharetify/desktop",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
-    "@musicshare/shared": "workspace:*",
+    "@sharetify/shared": "workspace:*",
     "hono": "^4.6.14",
     "node-datachannel": "^0.32.3"
   },

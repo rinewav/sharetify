@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ExternalLink, Loader2 } from "lucide-react";
-import type { LyricsResult, Track } from "@musicshare/shared";
+import type { LyricsResult, Track } from "@sharetify/shared";
 import { nodeLyrics } from "../lib/node-client.js";
 import { usePlayer } from "../lib/player-store.js";
 

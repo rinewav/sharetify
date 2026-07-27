@@ -10,7 +10,7 @@ import {
   type LoginResponse,
   type MeResponse,
   type Track,
-} from "@musicshare/shared";
+} from "@sharetify/shared";
 import {
   addTrackToPlaylist,
   canAccessPlaylist,

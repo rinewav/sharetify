@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ListMusic, Play, Search, Sparkles } from "lucide-react";
-import type { CollectionKind, DiscoverSection, Track } from "@musicshare/shared";
+import type { CollectionKind, DiscoverSection, Track } from "@sharetify/shared";
 import { Artwork } from "../components/Artwork.js";
 import type { MenuItem } from "../components/ContextMenu.js";
 import { PressableCard } from "../components/PressableCard.js";

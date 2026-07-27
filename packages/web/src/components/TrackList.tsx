@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { Clock3, Download, Play, Plus, Volume2, X } from "lucide-react";
-import type { CacheState, CollectionKind, Track } from "@musicshare/shared";
+import type { CacheState, CollectionKind, Track } from "@sharetify/shared";
 import { Artwork } from "./Artwork.js";
 import { formatDuration } from "../lib/format.js";
 import { usePlayer } from "../lib/player-store.js";

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Download, MoreHorizontal, Play, Shuffle, Trash2, Users } from "lucide-react";
-import type { CacheState, CollectionKind, Playlist } from "@musicshare/shared";
+import type { CacheState, CollectionKind, Playlist } from "@sharetify/shared";
 import { Artwork } from "../components/Artwork.js";
 import { TrackList } from "../components/TrackList.js";
 import { artworkGradient } from "../lib/artwork.js";

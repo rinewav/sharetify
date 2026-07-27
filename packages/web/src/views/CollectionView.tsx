@@ -5,7 +5,7 @@ import type {
   CollectionKind,
   CollectionResponse,
   Track,
-} from "@musicshare/shared";
+} from "@sharetify/shared";
 import { Artwork } from "../components/Artwork.js";
 import { TrackList } from "../components/TrackList.js";
 import { formatCount, formatTotalDuration } from "../lib/format.js";

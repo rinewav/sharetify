@@ -1,4 +1,4 @@
-import type { LyricsLine, LyricsResult, Track } from "@musicshare/shared";
+import type { LyricsLine, LyricsResult, Track } from "@sharetify/shared";
 
 /**
  * 歌詞を探してくる。
@@ -12,7 +12,7 @@ import type { LyricsLine, LyricsResult, Track } from "@musicshare/shared";
 
 const LRCLIB_ROOT = "https://lrclib.net/api";
 /** 提供元が求めている名乗り。素性を明かしておく。 */
-const USER_AGENT = "musicshare (https://github.com/musicshare)";
+const USER_AGENT = "sharetify (https://github.com/sharetify)";
 
 interface LrclibEntry {
   id?: number;

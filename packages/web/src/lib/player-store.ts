@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Track } from "@musicshare/shared";
+import type { Track } from "@sharetify/shared";
 
 /**
  * 再生状態。
@@ -55,7 +55,7 @@ export function attachSessionBridge(next: (action: SessionAction) => void): void
  * 並びに関わるもの (かき混ぜ) は入れない。
  * 復元したときに手元の並びと食い違うため。
  */
-const SETTINGS_KEY = "musicshare.player-settings";
+const SETTINGS_KEY = "sharetify.player-settings";
 
 interface StoredSettings {
   volume: number;

@@ -9,13 +9,13 @@
 
 ```bash
 # 自分の PC の node サーバー (音声の取得を担う)
-pnpm --filter @musicshare/desktop dev
+pnpm --filter @sharetify/desktop dev
 
 # 画面
-MUSICSHARE_PUBLIC_HOST=my-macbook-pro.tail17329a.ts.net pnpm dev:web
+SHARETIFY_PUBLIC_HOST=my-macbook-pro.tail17329a.ts.net pnpm dev:web
 ```
 
-`MUSICSHARE_PUBLIC_HOST` は更新通知 (HMR) の接続先を実機向けに変えるためのもの。
+`SHARETIFY_PUBLIC_HOST` は更新通知 (HMR) の接続先を実機向けに変えるためのもの。
 省略しても再生の確認はできる（更新が自動反映されなくなるだけ）。
 
 ## 2. Tailscale で公開する

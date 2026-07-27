@@ -6,7 +6,7 @@ import type {
   NodeHealth,
   SearchResponse,
   Track,
-} from "@musicshare/shared";
+} from "@sharetify/shared";
 import { ResultCard } from "../components/ResultCard.js";
 import { TrackList } from "../components/TrackList.js";
 import { formatCount } from "../lib/format.js";

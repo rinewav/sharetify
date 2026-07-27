@@ -1,4 +1,4 @@
-import type { CollectionKind } from "@musicshare/shared";
+import type { CollectionKind } from "@sharetify/shared";
 
 /** 仮組みの段階では URL を持たない素朴なルーター。後で history API に載せ替える。 */
 export type Route =

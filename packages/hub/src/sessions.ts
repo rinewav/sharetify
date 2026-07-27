@@ -8,8 +8,8 @@ import type {
   SessionControl,
   Track,
   User,
-} from "@musicshare/shared";
-import { expectedPositionMs } from "@musicshare/shared";
+} from "@sharetify/shared";
+import { expectedPositionMs } from "@sharetify/shared";
 import { getUser } from "./store.js";
 
 /**

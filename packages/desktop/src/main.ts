@@ -1,5 +1,5 @@
 import { app, BrowserWindow } from "electron";
-import { NODE_DEFAULT_PORT } from "@musicshare/shared";
+import { NODE_DEFAULT_PORT } from "@sharetify/shared";
 import { startNodeServer } from "./server/index.js";
 
 /**
@@ -13,7 +13,7 @@ import { startNodeServer } from "./server/index.js";
  * 落とすと外出先のスマホからダウンロード済みしか鳴らせなくなる。
  */
 
-const WEB_DEV_URL = process.env.MUSICSHARE_WEB_URL ?? "http://localhost:5273";
+const WEB_DEV_URL = process.env.SHARETIFY_WEB_URL ?? "http://localhost:5273";
 
 let window: BrowserWindow | null = null;
 

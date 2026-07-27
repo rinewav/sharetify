@@ -8,12 +8,12 @@
  * 取りに行かずに済むぶん頭出しも速くなる。
  */
 
-const CACHE_NAME = "musicshare-audio-v1";
+const CACHE_NAME = "sharetify-audio-v1";
 /** 保存できる上限。端末の空きを食い尽くさないよう頭を押さえる。 */
 const MAX_BYTES = 2 * 1024 * 1024 * 1024;
 
 /** 保存した順を覚えておき、あふれたら古いものから捨てる。 */
-const ORDER_KEY = "musicshare.cache-order";
+const ORDER_KEY = "sharetify.cache-order";
 
 function keyFor(trackId: string): string {
   return `/offline-audio/${encodeURIComponent(trackId)}`;

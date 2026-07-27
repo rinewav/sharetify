@@ -14,7 +14,7 @@ import {
   type ResolveResponse,
   type SearchResponse,
   type Track,
-} from "@musicshare/shared";
+} from "@sharetify/shared";
 import {
   cachePathFor,
   cachedCount,
@@ -410,9 +410,9 @@ export async function startNodeServer(port = NODE_DEFAULT_PORT) {
    * 合言葉を打つだけで自分の PC を使えるようになる。
    * 中央は引き合わせるだけで、音声はここと相手の間を直接流れる。
    */
-  if (process.env.MUSICSHARE_PAIRING !== "off") {
+  if (process.env.SHARETIFY_PAIRING !== "off") {
     host = new PeerHost(app, {
-      hubUrl: process.env.MUSICSHARE_HUB_URL,
+      hubUrl: process.env.SHARETIFY_HUB_URL,
       label: hostname(),
       onCode: (code) => console.log(`[peer] 合言葉: ${code}`),
       onGuestCountChange: (count) => console.log(`[peer] 接続中の端末: ${count}`),

@@ -9,7 +9,7 @@ import type {
   ResolveResponse,
   SearchResponse,
   Track,
-} from "@musicshare/shared";
+} from "@sharetify/shared";
 import { peerClient } from "./peer-client.js";
 
 /**

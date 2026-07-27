@@ -17,7 +17,7 @@ importers:
       '@hono/node-server':
         specifier: ^1.13.7
         version: 1.19.15(hono@4.12.32)
-      '@musicshare/shared':
+      '@sharetify/shared':
         specifier: workspace:*
         version: link:../shared
       hono:
@@ -48,7 +48,7 @@ importers:
       '@hono/node-ws':
         specifier: ^1.0.4
         version: 1.3.1(@hono/node-server@1.19.15(hono@4.12.32))(hono@4.12.32)
-      '@musicshare/shared':
+      '@sharetify/shared':
         specifier: workspace:*
         version: link:../shared
       hono:
@@ -76,7 +76,7 @@ importers:
 
   packages/web:
     dependencies:
-      '@musicshare/shared':
+      '@sharetify/shared':
         specifier: workspace:*
         version: link:../shared
       lucide-react:

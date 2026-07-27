@@ -6,7 +6,7 @@ import type {
   Playlist,
   Track,
   User,
-} from "@musicshare/shared";
+} from "@sharetify/shared";
 import {
   hubAddTrack,
   hubCreateGroup,

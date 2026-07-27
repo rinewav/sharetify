@@ -14,7 +14,7 @@ import {
   type HostMessage,
   type PeerControl,
   type SignalPayload,
-} from "@musicshare/shared";
+} from "@sharetify/shared";
 
 /**
  * スマートフォンからの直結を受ける側。

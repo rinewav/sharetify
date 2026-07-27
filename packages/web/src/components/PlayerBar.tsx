@@ -14,7 +14,7 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import type { CollectionKind, Track } from "@musicshare/shared";
+import type { CollectionKind, Track } from "@sharetify/shared";
 import { Artwork } from "./Artwork.js";
 import { ProgressBar } from "./ProgressBar.js";
 import { formatDuration } from "../lib/format.js";

@@ -11,3 +11,8 @@ out/
 data/
 bin/yt-dlp
 bin/yt-dlp.exe
+
+# テストの記録と Python の中間ファイル
+.playwright-mcp/
+__pycache__/
+*.pyc

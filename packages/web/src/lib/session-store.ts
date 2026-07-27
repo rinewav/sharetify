@@ -9,7 +9,7 @@ import {
   type ReadinessEntry,
   type ServerMessage,
   type SessionControl,
-} from "@musicshare/shared";
+} from "@sharetify/shared";
 import { hubCreateSession, hubListSessions, storedToken } from "./hub-client.js";
 import { useLibrary } from "./library-store.js";
 import { attachSessionBridge, usePlayer } from "./player-store.js";

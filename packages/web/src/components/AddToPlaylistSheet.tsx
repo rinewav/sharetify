@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Check, Plus, Users, X } from "lucide-react";
-import type { Track } from "@musicshare/shared";
+import type { Track } from "@sharetify/shared";
 import { Artwork } from "./Artwork.js";
 import { Sheet } from "./Sheet.js";
 import { useLibrary } from "../lib/library-store.js";

@@ -1,4 +1,4 @@
-import type { Track } from "@musicshare/shared";
+import type { Track } from "@sharetify/shared";
 import { attachBackend, usePlayer } from "./player-store.js";
 import { artworkUrl, canStreamDirectly, fetchTrackBlob, streamUrl } from "./node-client.js";
 import { getCached, putCached } from "./offline-cache.js";
