@@ -38,7 +38,7 @@
   "build": {
     "appId": "app.sharetify.desktop",
     "productName": "Sharetify",
-    "afterPack": "scripts/strip-media-usage.mjs",
+    "afterPack": "scripts/finalize-mac-bundle.mjs",
     "directories": {
       "output": "release",
       "buildResources": "build"
