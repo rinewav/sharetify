@@ -6,6 +6,17 @@
 from __future__ import annotations
 
 import re
+import sys
+
+# 出力は常に UTF-8 で書く。
+#
+# Windows の Python は、パイプへの出力を OS の文字コード (日本語環境では
+# cp932) で書こうとする。曲名にはそこに無い文字が普通に混ざるので、
+# JSON を書き出す途中で UnicodeEncodeError になり、検索そのものが失敗する。
+# 受け取る側 (Node) は常に UTF-8 として読むため、こちらで固定するのが正しい。
+for stream in (sys.stdout, sys.stderr):
+    if hasattr(stream, "reconfigure"):
+        stream.reconfigure(encoding="utf-8")
 
 # 返ってくる URL は 120px 指定のことが多い。末尾の寸法を書き換えれば
 # 同じ画像を大きいサイズで取れるので、表示に耐える解像度に上げておく。

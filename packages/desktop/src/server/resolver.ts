@@ -67,7 +67,18 @@ export class ResolverFailure extends Error {
 
 function run(bin: string, args: string[], timeoutMs = 30_000): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn(bin, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(bin, args, {
+      stdio: ["ignore", "pipe", "pipe"],
+      /*
+       * Python の入出力を UTF-8 に固定する。
+       *
+       * Windows では OS の文字コード (日本語環境では cp932) が既定になり、
+       * 曲名に混ざる文字を書き出せずに検索ごと失敗する。
+       * スクリプト側でも固定しているが、開くファイルの既定まで
+       * 効かせるにはこちらも要る。
+       */
+      env: { ...process.env, PYTHONUTF8: "1" },
+    });
 
     let stdout = "";
     let stderr = "";

@@ -15,6 +15,7 @@ import { SettingsSheet } from "./components/SettingsSheet.js";
 import { Setup, setupDone } from "./components/Setup.js";
 import { SignInSheet } from "./components/SignInSheet.js";
 import { Sidebar } from "./components/Sidebar.js";
+import { UpdateNotice } from "./components/UpdateNotice.js";
 import { audioEngine } from "./lib/audio-engine.js";
 import { startDiscordPresence } from "./lib/discord-presence.js";
 import { startHistorySync } from "./lib/history-sync.js";
@@ -336,6 +337,7 @@ export default function App() {
           onOpenPairing={() => setPairingOpen(true)}
         />
       )}
+      <UpdateNotice version={health?.version ?? null} />
       {layoutProbeEnabled() && <LayoutProbe />}
     </div>
   );
