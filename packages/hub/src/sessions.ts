@@ -21,6 +21,8 @@ import { getUser } from "./store.js";
  */
 
 interface Connection {
+  /** この繋がりの識別子。同じ人でも端末ごとに別になる。 */
+  id: string;
   socket: WSContext;
   user: User;
   sessionId?: string;
@@ -31,8 +33,17 @@ interface Connection {
 const connections = new Map<string, Connection>();
 const sessions = new Map<string, ListeningSession>();
 
+/*
+ * 場を進めているのがどの繋がりかを覚えておく。
+ *
+ * 同じ人が複数の端末から入ることがあるので、利用者が誰かでは決められない。
+ * 利用者で判断すると、その人の全部の端末が同時に進行役になってしまい、
+ * 互いに相手へ合わせようとして噛み合わなくなる。
+ */
+const hostConnections = new Map<string, string>();
+
 export function registerConnection(id: string, socket: WSContext, user: User): void {
-  connections.set(id, { socket, user, readiness: new Map() });
+  connections.set(id, { id, socket, user, readiness: new Map() });
 }
 
 export function dropConnection(id: string): void {
@@ -42,7 +53,11 @@ export function dropConnection(id: string): void {
   leaveSession(id, conn);
 }
 
-export function createSession(groupId: string, hostId: string): ListeningSession {
+export function createSession(
+  groupId: string,
+  hostId: string,
+  hostConnectionId?: string,
+): ListeningSession {
   const session: ListeningSession = {
     id: randomUUID(),
     groupId,
@@ -58,6 +73,7 @@ export function createSession(groupId: string, hostId: string): ListeningSession
     },
   };
   sessions.set(session.id, session);
+  if (hostConnectionId) hostConnections.set(session.id, hostConnectionId);
   return session;
 }
 
@@ -90,6 +106,18 @@ export function handleMessage(connectionId: string, raw: string): void {
 
     case "session:join":
       joinSession(connectionId, conn, message.sessionId);
+      return;
+
+    case "session:claim-host":
+      // 立てた本人が名乗り出る。まだ誰も進行していない場だけ受ける。
+      if (conn.sessionId && !hostConnections.has(conn.sessionId)) {
+        hostConnections.set(conn.sessionId, conn.id);
+        const claimed = sessions.get(conn.sessionId);
+        if (claimed) {
+          claimed.hostId = conn.user.id;
+          broadcastState(claimed);
+        }
+      }
       return;
 
     case "session:leave":
@@ -136,11 +164,16 @@ function leaveSession(connectionId: string, conn: Connection): void {
     return;
   }
 
-  // ホストが抜けたら、残っている中で最初の人に引き継ぐ。
-  // こうしないとホストの離脱でセッションが操作不能になる。
-  if (session.hostId === conn.user.id) {
-    const nextHost = session.participantIds[0];
-    if (nextHost) session.hostId = nextHost;
+  /*
+   * 進行役が抜けたら、残っている繋がりへ引き継ぐ。
+   * こうしないと場が誰にも動かせなくなる。
+   */
+  if (hostConnections.get(sessionId) === conn.id) {
+    const next = [...connections.values()].find((c) => c.sessionId === sessionId);
+    if (next) {
+      hostConnections.set(sessionId, next.id);
+      session.hostId = next.user.id;
+    }
   }
 
   broadcastState(session);
@@ -153,7 +186,7 @@ function applyControl(conn: Connection, action: SessionControl): void {
     send(conn, { type: "error", message: "not in a session" });
     return;
   }
-  if (session.hostId !== conn.user.id) {
+  if (hostConnections.get(session.id) !== conn.id) {
     send(conn, { type: "error", message: "only the host can control playback" });
     return;
   }
@@ -231,9 +264,10 @@ function clampIndex(index: number, length: number): number {
 }
 
 function broadcastState(session: ListeningSession): void {
-  const message: ServerMessage = { type: "session:state", session };
-  for (const conn of connections.values()) {
-    if (conn.sessionId === session.id) send(conn, message);
+  const hostConnectionId = hostConnections.get(session.id);
+  for (const [id, conn] of connections) {
+    if (conn.sessionId !== session.id) continue;
+    send(conn, { type: "session:state", session, youAreHost: id === hostConnectionId });
   }
 }
 
@@ -249,19 +283,26 @@ function broadcastReadiness(sessionId: string | undefined): void {
   const session = sessions.get(sessionId);
   if (!session) return;
 
+  /*
+   * まだ曲が決まっていなくても、誰がいるかは配る。
+   * 参加者が見えないと、集まれているのかどうかも分からない。
+   * その場合は待つものが無いので、揃っている扱いにする。
+   */
   const trackId = session.state.track?.id;
-  if (!trackId) return;
 
+  const hostConnectionId = hostConnections.get(sessionId);
   const entries: ReadinessEntry[] = [];
   for (const conn of connections.values()) {
     if (conn.sessionId !== sessionId) continue;
-    const report = conn.readiness.get(trackId);
+    const report = trackId ? conn.readiness.get(trackId) : undefined;
     entries.push({
+      participantId: conn.id,
       userId: conn.user.id,
       displayName: getUser(conn.user.id)?.displayName ?? conn.user.displayName,
-      trackId,
-      ready: report?.ready ?? false,
+      trackId: trackId ?? "",
+      ready: trackId ? (report?.ready ?? false) : true,
       reason: report?.reason,
+      isHost: conn.id === hostConnectionId,
     });
   }
 

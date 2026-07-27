@@ -2,6 +2,7 @@ import type { Track } from "@musicshare/shared";
 import { attachBackend, usePlayer } from "./player-store.js";
 import { artworkUrl, canStreamDirectly, fetchTrackBlob, streamUrl } from "./node-client.js";
 import { getCached, putCached } from "./offline-cache.js";
+import { useSession } from "./session-store.js";
 import { trackProgressed, trackStarted } from "./scrobbler.js";
 
 /**
@@ -95,7 +96,10 @@ class AudioEngine {
     el.addEventListener("timeupdate", () => {
       if (index !== this.active) return;
       const positionMs = el.currentTime * 1000;
-      usePlayer.getState().reportPosition(positionMs);
+      const player = usePlayer.getState();
+      player.reportPosition(positionMs);
+      // 時刻が進んでいるなら確かに鳴っている。待ちの表示が残っていたら解く。
+      if (player.loading && !el.paused) player.reportLoading(false);
       this.syncPositionState();
 
       const track = usePlayer.getState().current();
@@ -242,6 +246,7 @@ class AudioEngine {
         deck.objectUrl = url;
         deck.el.src = url;
         deck.el.load();
+        reportReadiness(track.id, true);
         return true;
       }
 
@@ -261,14 +266,17 @@ class AudioEngine {
         void putCached(track.id, blob);
       }
       deck.el.load();
+      // 一緒に聴いている場に、この曲を出せることを伝える。
+      reportReadiness(track.id, true);
       return true;
     } catch (error) {
+      const message = error instanceof Error ? error.message : "曲を取得できませんでした。";
       if (deck === this.current) {
-        usePlayer
-          .getState()
-          .reportError(error instanceof Error ? error.message : "曲を取得できませんでした。");
+        usePlayer.getState().reportError(message);
         usePlayer.getState().reportPlaying(false);
       }
+      // 出せないことも伝える。黙ると相手側でずっと待つことになる。
+      reportReadiness(track.id, false, message);
       deck.trackId = null;
       return false;
     }
@@ -285,10 +293,20 @@ class AudioEngine {
 
     void el
       .play()
-      .then(() => this.fade(el, target, EDGE_FADE_MS))
+      .then(() => {
+        /*
+         * 鳴り始めたら待ちを解く。
+         *
+         * 既に鳴っている装置に頼み直したときは playing の知らせが来ないので、
+         * それだけを当てにしていると輪が回り続けたままになる。
+         */
+        usePlayer.getState().reportLoading(false);
+        this.fade(el, target, EDGE_FADE_MS);
+      })
       .catch((error: unknown) => {
         usePlayer.getState().reportError(describePlayRejection(error));
         usePlayer.getState().reportPlaying(false);
+        usePlayer.getState().reportLoading(false);
       });
 
     this.syncMediaSession();
@@ -486,6 +504,19 @@ class AudioEngine {
 }
 
 export const audioEngine = new AudioEngine();
+
+/**
+ * 一緒に聴いている場へ、この曲を出せるかどうかを伝える。
+ *
+ * 各自が別々に音源を用意する方式なので、誰か一人だけ揃わないことがある。
+ * 黙っていると相手側でいつまでも待つことになるので、成否とも必ず伝える。
+ * 参加していないときは何も起きない。
+ */
+function reportReadiness(trackId: string, ready: boolean, reason?: string): void {
+  const session = useSession.getState();
+  if (!session.inSession) return;
+  session.reportReadiness(trackId, ready, reason);
+}
 
 function describeMediaError(error: MediaError | null): string {
   switch (error?.code) {

@@ -75,6 +75,7 @@ export interface ListeningState {
 export interface ListeningSession {
   id: string;
   groupId: string;
+  /** 場を進めている人。表示用。誰が操作できるかは繋がりごとに決まる。 */
   hostId: string;
   participantIds: string[];
   state: ListeningState;
@@ -85,6 +86,8 @@ export type ClientMessage =
   /** 時刻同期。往復遅延を測って hub 時刻とのズレを求める。 */
   | { type: "sync:ping"; clientTime: number }
   | { type: "session:join"; sessionId: string }
+  /** 立てた本人が進行役を名乗り出る。まだ誰もいない場だけ通る。 */
+  | { type: "session:claim-host" }
   | { type: "session:leave" }
   /** ホストのみ。再生状態を動かす。 */
   | { type: "session:control"; action: SessionControl }
@@ -102,18 +105,26 @@ export type SessionControl =
 /** hub → クライアント */
 export type ServerMessage =
   | { type: "sync:pong"; clientTime: number; serverTime: number }
-  | { type: "session:state"; session: ListeningSession }
+  /*
+   * `youAreHost` は受け取る側ごとに変わる。
+   * 同じ人が複数の端末から入ることがあるので、
+   * 利用者が誰かではなく、どの繋がりかで決める。
+   */
+  | { type: "session:state"; session: ListeningSession; youAreHost: boolean }
   /** 誰がその曲を用意できていないか。UI に出して原因を可視化する。 */
   | { type: "session:readiness"; entries: ReadinessEntry[] }
   | { type: "session:closed"; reason: string }
   | { type: "error"; message: string };
 
 export interface ReadinessEntry {
+  /** 繋がりごとの識別子。同じ人が別の端末から入ることがある。 */
+  participantId: string;
   userId: string;
   displayName: string;
   trackId: string;
   ready: boolean;
   reason?: string;
+  isHost: boolean;
 }
 
 /**

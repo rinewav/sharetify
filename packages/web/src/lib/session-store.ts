@@ -23,6 +23,8 @@ import { attachSessionBridge, usePlayer } from "./player-store.js";
  */
 
 export interface Participant {
+  /** 繋がりごとの識別子。同じ人が別の端末から入ることがある。 */
+  participantId: string;
   userId: string;
   displayName: string;
   ready: boolean;
@@ -40,6 +42,8 @@ interface SessionState {
   inSession: boolean;
   session: ListeningSession | null;
   participants: Participant[];
+  /** この端末が場を進めているか。中央が繋がりごとに教えてくれる。 */
+  isHost: boolean;
   /** hub の時計と自分の時計のズレ (ミリ秒)。 */
   clockOffsetMs: number;
   roundTripMs: number;
@@ -89,6 +93,7 @@ attachSessionBridge((action) => useSession.getState().broadcast(action));
 export const useSession = create<SessionState>((set, get) => ({
   connected: false,
   inSession: false,
+  isHost: false,
   session: null,
   participants: [],
   clockOffsetMs: 0,
@@ -139,7 +144,7 @@ export const useSession = create<SessionState>((set, get) => ({
     clearTimers();
     socket?.close();
     socket = null;
-    set({ connected: false, inSession: false, session: null, participants: [] });
+    set({ connected: false, inSession: false, isHost: false, session: null, participants: [] });
     usePlayer.getState().setSessionRole(false, false);
   },
 
@@ -148,7 +153,7 @@ export const useSession = create<SessionState>((set, get) => ({
   leaveSession: () => {
     sendMessage({ type: "session:leave" });
     // 参加をやめても経路は開けておく。すぐ入り直せるように。
-    set({ inSession: false, session: null, participants: [], driftMs: 0 });
+    set({ inSession: false, isHost: false, session: null, participants: [], driftMs: 0 });
     usePlayer.getState().setSessionRole(false, false);
   },
 
@@ -165,8 +170,8 @@ export const useSession = create<SessionState>((set, get) => ({
    */
   broadcast: (action) => {
     if (applyingRemote) return;
-    const { inSession, session, myUserId } = get();
-    if (!inSession || !session || session.hostId !== myUserId) return;
+    const { inSession, isHost } = get();
+    if (!inSession || !isHost) return;
     sendMessage({ type: "session:control", action });
   },
 
@@ -186,6 +191,8 @@ export const useSession = create<SessionState>((set, get) => ({
       // 繋がりきる前に入ろうとしても届かないので、開くのを待つ。
       await waitForOpen();
       get().joinSession(session.id);
+      // 新しく立てた場なら、進行役として名乗り出る。
+      if (!found) sendMessage({ type: "session:claim-host" });
     } catch (error) {
       console.warn("[session]", error);
     }
@@ -235,9 +242,10 @@ function handleServerMessage(message: ServerMessage, get: Get, set: Set): void {
 
     case "session:state": {
       const session = message.session;
-      const myUserId = get().myUserId;
-      const isHost = session.hostId === myUserId;
-      set({ session, inSession: true });
+      // 進行役かどうかは中央が繋がりごとに教えてくれる。
+      // 利用者で判断すると、自分の別の端末まで進行役になってしまう。
+      const isHost = message.youAreHost;
+      set({ session, inSession: true, isHost });
 
       const player = usePlayer.getState();
       player.setSessionRole(true, isHost);
@@ -292,11 +300,12 @@ function toParticipants(
   session: ListeningSession | null,
 ): Participant[] {
   return entries.map((entry) => ({
+    participantId: entry.participantId,
     userId: entry.userId,
     displayName: entry.displayName,
     ready: entry.ready,
     reason: entry.reason,
-    isHost: session?.hostId === entry.userId,
+    isHost: entry.isHost,
   }));
 }
 
@@ -307,10 +316,10 @@ function toParticipants(
  * わずかなら次の tick で吸収させ、大きく外れたときだけ跳ばす。
  */
 function reconcile(get: Get, set: Set): void {
-  const { session, clockOffsetMs, myUserId } = get();
+  const { session, clockOffsetMs, isHost } = get();
   if (!session?.state.track) return;
-  // ホストは基準。自分を自分に合わせる必要はない。
-  if (session.hostId === myUserId) return;
+  // 進行役は基準。自分を自分に合わせる必要はない。
+  if (isHost) return;
 
   const player = usePlayer.getState();
   const target = expectedPositionMs(session.state, clockOffsetMs);

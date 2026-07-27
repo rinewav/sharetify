@@ -61,7 +61,7 @@ export function SessionPanel({ onClose, fullWidth = false }: Props) {
           <div className="scroll-area min-h-0 flex-1 px-2 py-2">
             {participants.map((participant) => (
               <div
-                key={participant.userId}
+                key={participant.participantId}
                 className="flex items-center gap-3 rounded-md px-2 py-2 hover:bg-surface-2"
               >
                 <div className="grid size-8 shrink-0 place-items-center rounded-full bg-surface-3 text-xs font-semibold">
