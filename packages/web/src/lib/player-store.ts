@@ -18,6 +18,8 @@ export interface PlaybackBackend {
   pause: () => void;
   seek: (positionMs: number) => void;
   setVolume: (volume: number, muted: boolean) => void;
+  /** 送りの速さ。一緒に聴くときの微調整に使う。 */
+  setRate: (rate: number) => void;
 }
 
 let backend: PlaybackBackend | null = null;
@@ -142,6 +144,8 @@ interface PlayerState {
   handleEnded: () => void;
 
   applyRemotePosition: (positionMs: number) => void;
+  /** 一緒に聴くときだけ使う。少しだけ速く / 遅く送って位置を詰める。 */
+  nudgeRate: (rate: number) => void;
   setSessionRole: (following: boolean, isHost: boolean) => void;
 }
 
@@ -386,6 +390,8 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     set({ positionMs: Math.max(0, positionMs) });
     backend?.seek(positionMs);
   },
+
+  nudgeRate: (rate) => backend?.setRate(rate),
 
   setSessionRole: (followingSession, isSessionHost) => set({ followingSession, isSessionHost }),
 }));

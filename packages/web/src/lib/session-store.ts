@@ -145,6 +145,7 @@ export const useSession = create<SessionState>((set, get) => ({
     socket?.close();
     socket = null;
     set({ connected: false, inSession: false, isHost: false, session: null, participants: [] });
+    usePlayer.getState().nudgeRate(1);
     usePlayer.getState().setSessionRole(false, false);
   },
 
@@ -154,6 +155,8 @@ export const useSession = create<SessionState>((set, get) => ({
     sendMessage({ type: "session:leave" });
     // 参加をやめても経路は開けておく。すぐ入り直せるように。
     set({ inSession: false, isHost: false, session: null, participants: [], driftMs: 0 });
+    // 詰めるために変えていた送りの速さを戻す。抜けたあとまで引きずらない。
+    usePlayer.getState().nudgeRate(1);
     usePlayer.getState().setSessionRole(false, false);
   },
 
@@ -285,6 +288,7 @@ function handleServerMessage(message: ServerMessage, get: Get, set: Set): void {
 
     case "session:closed": {
       set({ session: null, participants: [] });
+      usePlayer.getState().nudgeRate(1);
       usePlayer.getState().setSessionRole(false, false);
       return;
     }
@@ -309,11 +313,19 @@ function toParticipants(
   }));
 }
 
+/** 詰めるときに変える送りの速さの上限。これ以上ずらすと音の高さで気付かれる。 */
+const MAX_RATE_SHIFT = 0.04;
+
 /**
  * 自分の再生位置を、hub が示す位置に寄せる。
  *
- * 小さいズレでシークすると音が途切れて耳につくので、
- * わずかなら次の tick で吸収させ、大きく外れたときだけ跳ばす。
+ * 小さいずれで跳ばしてはいけない。跳ぶたびに音が途切れ、
+ * 途切れた分また遅れて、次の秒でまた跳ぶ、という堂々巡りになる
+ * (実測で -400ms と -260ms の間を往復し続けた)。
+ *
+ * だから小さいずれは、送りの速さをほんの少し変えて詰める。
+ * 数 % なら音の高さは変わって聞こえず、数秒かけて自然に揃う。
+ * 大きく外れたときだけ、諦めて跳ぶ。
  */
 function reconcile(get: Get, set: Set): void {
   const { session, clockOffsetMs, isHost } = get();
@@ -328,10 +340,20 @@ function reconcile(get: Get, set: Set): void {
 
   if (Math.abs(drift) >= SYNC_DRIFT_SEEK_MS) {
     player.seek(target);
+    player.nudgeRate(1);
     return;
   }
-  if (Math.abs(drift) >= SYNC_DRIFT_NUDGE_MS) {
-    // 一気に飛ばさず、差の半分だけ詰める。数秒かけて滑らかに揃う。
-    player.seek(player.positionMs - drift / 2);
+
+  if (Math.abs(drift) < SYNC_DRIFT_NUDGE_MS) {
+    // 揃っている。等速に戻す。
+    player.nudgeRate(1);
+    return;
   }
+
+  /*
+   * 進んでいるなら少し遅く、遅れているなら少し速く送る。
+   * ずれが大きいほど強めに、ただし上限は超えない。
+   */
+  const shift = Math.min(MAX_RATE_SHIFT, Math.abs(drift) / SYNC_DRIFT_SEEK_MS * MAX_RATE_SHIFT);
+  player.nudgeRate(drift > 0 ? 1 - shift : 1 + shift);
 }

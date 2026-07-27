@@ -76,6 +76,7 @@ class AudioEngine {
       pause: () => this.pause(),
       seek: (positionMs) => this.seek(positionMs),
       setVolume: (volume, muted) => this.applyVolume(volume, muted),
+      setRate: (rate) => this.applyRate(rate),
     });
 
     this.registerMediaSessionHandlers();
@@ -332,6 +333,19 @@ class AudioEngine {
     }
     el.currentTime = positionMs / 1000;
     this.syncPositionState();
+  }
+
+  /**
+   * 送りの速さをわずかに変える。
+   *
+   * 一緒に聴いているときの小さなずれを、跳ばさずに詰めるために使う。
+   * 数 % なら音の高さは変わって聞こえないので、詰めていることに気付かれない。
+   */
+  private applyRate(rate: number): void {
+    if (!this.decks) return;
+    const el = this.current.el;
+    if (Math.abs(el.playbackRate - rate) < 0.001) return;
+    el.playbackRate = rate;
   }
 
   private applyVolume(volume: number, muted: boolean): void {
