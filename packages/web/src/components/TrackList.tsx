@@ -1,5 +1,5 @@
 import { Clock3, Download, Play, Volume2 } from "lucide-react";
-import type { CacheState, Track } from "@musicshare/shared";
+import type { CacheState, CollectionKind, Track } from "@musicshare/shared";
 import { Artwork } from "./Artwork.js";
 import { formatDuration } from "../lib/format.js";
 import { usePlayer } from "../lib/player-store.js";
@@ -10,9 +10,17 @@ interface Props {
   cacheStates?: Record<string, CacheState>;
   onPlay: (index: number) => void;
   showAlbum?: boolean;
+  /** アーティスト名やアルバム名から、そのページへ移るための入口。 */
+  onOpenCollection?: (kind: CollectionKind, id: string, title: string) => void;
 }
 
-export function TrackList({ tracks, cacheStates = {}, onPlay, showAlbum = true }: Props) {
+export function TrackList({
+  tracks,
+  cacheStates = {},
+  onPlay,
+  showAlbum = true,
+  onOpenCollection,
+}: Props) {
   const currentId = usePlayer((s) => s.current()?.id);
   const playing = usePlayer((s) => s.playing);
 
@@ -39,11 +47,23 @@ export function TrackList({ tracks, cacheStates = {}, onPlay, showAlbum = true }
           const isCurrent = track.id === currentId;
           const cache = cacheStates[track.id] ?? "none";
           return (
-            <button
+            /*
+             * 行そのものを押すと再生する。
+             * 中にアーティストやアルバムへの入口を置くので、
+             * 押せる要素を入れ子にしないよう役割で表している。
+             */
+            <div
               key={`${track.id}-${index}`}
-              type="button"
+              role="button"
+              tabIndex={0}
               onClick={() => onPlay(index)}
-              className={`row-hover group grid w-full items-center gap-4 rounded-md px-2 py-2 text-left transition hover:bg-surface-2 sm:px-4 ${grid}`}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onPlay(index);
+                }
+              }}
+              className={`row-hover group grid cursor-pointer items-center gap-4 rounded-md px-2 py-2 text-left transition hover:bg-surface-2 sm:px-4 ${grid}`}
             >
               <div className="relative flex justify-end">
                 {isCurrent && playing ? (
@@ -73,13 +93,33 @@ export function TrackList({ tracks, cacheStates = {}, onPlay, showAlbum = true }
                   <div className={`truncate text-sm ${isCurrent ? "text-accent" : "text-ink"}`}>
                     {track.title}
                   </div>
-                  <div className="truncate text-xs text-ink-muted">{track.artist}</div>
+                  <div className="truncate text-xs text-ink-muted">
+                    <LinkedName
+                      label={track.artist}
+                      onOpen={
+                        track.artistId && onOpenCollection
+                          ? () => onOpenCollection("artist", track.artistId!, track.artist)
+                          : undefined
+                      }
+                    />
+                  </div>
                 </div>
               </div>
 
               {showAlbum && (
                 <span className="hidden truncate text-sm text-ink-muted md:block">
-                  {track.album ?? "—"}
+                  {track.album ? (
+                    <LinkedName
+                      label={track.album}
+                      onOpen={
+                        track.albumId && onOpenCollection
+                          ? () => onOpenCollection("album", track.albumId!, track.album!)
+                          : undefined
+                      }
+                    />
+                  ) : (
+                    "—"
+                  )}
                 </span>
               )}
 
@@ -89,11 +129,38 @@ export function TrackList({ tracks, cacheStates = {}, onPlay, showAlbum = true }
                   {formatDuration(track.durationMs)}
                 </span>
               </div>
-            </button>
+            </div>
           );
         })}
       </div>
     </div>
+  );
+}
+
+/**
+ * 移動先がある名前は押せるようにする。
+ * 行の再生と取り違えないよう、ここで伝播を止める。
+ */
+function LinkedName({ label, onOpen }: { label: string; onOpen?: () => void }) {
+  if (!onOpen) return <>{label}</>;
+  return (
+    <span
+      role="link"
+      tabIndex={0}
+      onClick={(event) => {
+        event.stopPropagation();
+        onOpen();
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter") return;
+        event.stopPropagation();
+        event.preventDefault();
+        onOpen();
+      }}
+      className="cursor-pointer hover:text-ink hover:underline"
+    >
+      {label}
+    </span>
   );
 }
 

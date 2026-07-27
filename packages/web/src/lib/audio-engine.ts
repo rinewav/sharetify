@@ -10,51 +10,98 @@ import {
 /**
  * 実際の再生を担う層。
  *
+ * 再生装置を 2 つ持ち、交互に使う。曲の終わりが近づいたら次を裏で鳴らし始め、
+ * 音量を入れ替えて繋ぐ。1 つで差し替えると切れ目に雑音が乗るので、
+ * 重ねてしまうほうが素直に消える。
+ *
  * iOS を主対象に置いた都合で、守っている約束がいくつかある。
  *
- *   1. audio 要素はアプリを通して 1 つだけ作り、使い回す。
+ *   1. 再生装置はアプリを通して作り直さない。
  *      曲ごとに作り直すと、最初の操作で得た再生許可を失って以降鳴らなくなる。
- *   2. 曲を切り替えるとき、URL の解決を待たない。
+ *   2. 曲を切り替えるとき、経路が中継なら URL の解決を待たない。
  *      待つと操作から時間が空き、その間に再生許可が切れる。
- *      trackId だけで開ける URL を用意してあるので、そのまま src に入れる。
  *   3. 最初のユーザー操作で無音を一度鳴らして許可を得ておく。
  */
 
-/** 0.05 秒の無音 WAV。再生許可を取るためだけに使う。 */
+/** 0.05 秒の無音。再生許可を取るためだけに使う。 */
 const SILENCE =
   "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
 
+/** 曲を繋ぐ長さ。長すぎると混ざりすぎるので短めに。 */
+const CROSSFADE_MS = 2200;
+/** 次の曲を用意し始める余裕。直結では受け取りきるまで時間がかかる。 */
+const PREFETCH_LEAD_MS = 20_000;
+/** 再生開始と停止に噛ませる長さ。頭の雑音が消える。 */
+const EDGE_FADE_MS = 120;
+/** 音量を変える刻み。 */
+const FADE_STEP_MS = 40;
+
+interface Deck {
+  el: HTMLAudioElement;
+  trackId: string | null;
+  objectUrl: string | null;
+}
+
 class AudioEngine {
-  private el: HTMLAudioElement | null = null;
-  private loadedTrackId: string | null = null;
+  private decks: [Deck, Deck] | null = null;
+  private active = 0;
   private unlocked = false;
-  /** 許可取得中。この間の失敗は曲の再生失敗ではないので、表に出さない。 */
   private unlocking = false;
-  /** 再生許可を取る前に play を頼まれた場合に、許可が取れ次第再生する。 */
   private playWhenUnlocked = false;
-  /** 直結で受け取った音声。差し替えるときに解放する。 */
-  private objectUrl: string | null = null;
+  /** 先読みを重ねて走らせないための目印。 */
+  private prefetchingId: string | null = null;
+  private crossfading = false;
+  private fadeTimers = new Set<ReturnType<typeof setInterval>>();
 
   init(): void {
-    if (this.el) return;
+    if (this.decks) return;
 
-    const el = document.createElement("audio");
-    el.preload = "auto";
-    // 音源は同一オリジン (node への中継) 経由でしか来ないので crossOrigin は付けない。
-    // 付けると CORS 前提の取得になり、かえって失敗する。
-    // インライン再生を明示しないと、全画面のネイティブプレーヤーに奪われる。
-    el.setAttribute("playsinline", "");
-    el.setAttribute("webkit-playsinline", "");
-    el.style.display = "none";
-    document.body.appendChild(el);
-    this.el = el;
+    const make = (): Deck => {
+      const el = document.createElement("audio");
+      el.preload = "auto";
+      // インライン再生を明示しないと、全画面の再生画面に奪われる。
+      el.setAttribute("playsinline", "");
+      el.setAttribute("webkit-playsinline", "");
+      el.style.display = "none";
+      document.body.appendChild(el);
+      return { el, trackId: null, objectUrl: null };
+    };
+
+    this.decks = [make(), make()];
+    this.wireDeck(0);
+    this.wireDeck(1);
+
+    attachBackend({
+      play: () => this.play(),
+      pause: () => this.pause(),
+      seek: (positionMs) => this.seek(positionMs),
+      setVolume: (volume, muted) => this.applyVolume(volume, muted),
+    });
+
+    this.registerMediaSessionHandlers();
+  }
+
+  private get current(): Deck {
+    return this.decks![this.active]!;
+  }
+
+  private get standby(): Deck {
+    return this.decks![this.active === 0 ? 1 : 0]!;
+  }
+
+  private wireDeck(index: number): void {
+    const deck = this.decks![index]!;
+    const el = deck.el;
 
     el.addEventListener("timeupdate", () => {
+      if (index !== this.active) return;
       usePlayer.getState().reportPosition(el.currentTime * 1000);
       this.syncPositionState();
+      void this.considerCrossfade();
     });
 
     el.addEventListener("loadedmetadata", () => {
+      if (index !== this.active) return;
       if (Number.isFinite(el.duration)) {
         usePlayer.getState().reportDuration(el.duration * 1000);
       }
@@ -62,6 +109,7 @@ class AudioEngine {
     });
 
     el.addEventListener("playing", () => {
+      if (index !== this.active) return;
       const player = usePlayer.getState();
       player.reportPlaying(true);
       player.reportLoading(false);
@@ -70,30 +118,30 @@ class AudioEngine {
     });
 
     el.addEventListener("pause", () => {
+      // 繋いでいる最中の停止は表に出さない。裏方の動きなので。
+      if (index !== this.active || this.crossfading) return;
       usePlayer.getState().reportPlaying(false);
       this.syncMediaSession();
     });
 
-    el.addEventListener("waiting", () => usePlayer.getState().reportLoading(true));
-    el.addEventListener("canplay", () => usePlayer.getState().reportLoading(false));
+    el.addEventListener("waiting", () => {
+      if (index === this.active) usePlayer.getState().reportLoading(true);
+    });
+    el.addEventListener("canplay", () => {
+      if (index === this.active) usePlayer.getState().reportLoading(false);
+    });
 
-    el.addEventListener("ended", () => usePlayer.getState().handleEnded());
+    el.addEventListener("ended", () => {
+      // 繋ぎが間に合った場合はここに来ない。来たときは素直に次へ。
+      if (index !== this.active || this.crossfading) return;
+      usePlayer.getState().handleEnded();
+    });
 
     el.addEventListener("error", () => {
-      // 許可取得のための無音再生で転んでも、利用者には関係ない。
-      if (this.unlocking) return;
+      if (this.unlocking || index !== this.active) return;
       usePlayer.getState().reportError(describeMediaError(el.error));
       usePlayer.getState().reportPlaying(false);
     });
-
-    attachBackend({
-      play: () => this.play(),
-      pause: () => this.pause(),
-      seek: (positionMs) => this.seek(positionMs),
-      setVolume: (volume, muted) => this.setVolume(volume, muted),
-    });
-
-    this.registerMediaSessionHandlers();
   }
 
   /**
@@ -101,48 +149,42 @@ class AudioEngine {
    * 無音を一瞬鳴らして再生許可を得ておくと、以降は操作から離れた文脈でも鳴らせる。
    */
   unlock(): void {
-    if (this.unlocked || this.unlocking || !this.el) return;
-    const el = this.el;
+    if (this.unlocked || this.unlocking || !this.decks) return;
 
-    // まだ曲を読み込んでいないときだけ無音を挟む。
-    // 再生中の曲がある状態で src を書き換えると、その再生を殺してしまう。
-    if (this.loadedTrackId !== null) {
+    // 既に何か読み込んでいるなら、その再生を殺さないよう触らない。
+    if (this.current.trackId !== null) {
       this.unlocked = true;
       return;
     }
 
     this.unlocking = true;
-    const restoreVolume = () => {
+    // 2 つとも許可を取っておく。繋ぎのときに裏側が鳴らないと意味がない。
+    const attempts = this.decks.map((deck) => {
+      deck.el.src = SILENCE;
+      deck.el.volume = 0;
+      return deck.el
+        .play()
+        .then(() => {
+          deck.el.pause();
+          deck.el.currentTime = 0;
+        })
+        .catch(() => undefined);
+    });
+
+    void Promise.all(attempts).finally(() => {
+      this.unlocking = false;
+      this.unlocked = true;
       const player = usePlayer.getState();
-      el.volume = player.muted ? 0 : player.volume;
-    };
-
-    el.src = SILENCE;
-    el.volume = 0;
-
-    void el
-      .play()
-      .then(() => {
-        el.pause();
-        el.currentTime = 0;
-        this.unlocked = true;
-      })
-      .catch(() => {
-        // 失敗しても致命ではない。次のユーザー操作でまた試す。
-      })
-      .finally(() => {
-        this.unlocking = false;
-        restoreVolume();
-        if (this.playWhenUnlocked) {
-          this.playWhenUnlocked = false;
-          this.play();
-        }
-      });
+      this.current.el.volume = player.muted ? 0 : player.volume;
+      if (this.playWhenUnlocked) {
+        this.playWhenUnlocked = false;
+        this.play();
+      }
+    });
   }
 
   private play(): void {
-    const el = this.el;
-    if (!el) return;
+    if (!this.decks) return;
 
     const player = usePlayer.getState();
     const track = player.current();
@@ -154,95 +196,200 @@ class AudioEngine {
       return;
     }
 
-    // 曲が変わったときだけ読み込み直す。同じ曲なら位置を保ったまま再開する。
-    if (this.loadedTrackId !== track.id) {
-      void this.loadTrack(track);
+    if (this.current.trackId !== track.id) {
+      void this.loadInto(this.current, track).then((ok) => {
+        if (ok) this.startPlayback();
+      });
       return;
     }
 
     this.startPlayback();
   }
 
-  private async loadTrack(track: Track): Promise<void> {
-    const el = this.el;
-    if (!el) return;
+  /** 指定した装置に曲を用意する。用意できたら true。 */
+  private async loadInto(deck: Deck, track: Track): Promise<boolean> {
+    deck.trackId = track.id;
 
-    this.loadedTrackId = track.id;
-    usePlayer.getState().reportDuration(0);
-    usePlayer.getState().reportLoading(true);
-    this.syncMediaSession();
+    if (deck === this.current) {
+      usePlayer.getState().reportDuration(0);
+      usePlayer.getState().reportLoading(true);
+      this.syncMediaSession();
+    }
 
-    this.releaseObjectUrl();
+    this.releaseObjectUrl(deck);
 
     try {
       if (canStreamDirectly()) {
         // 中継経路では URL をそのまま渡せる。解決を待たないので頭出しが速い。
-        el.src = streamUrl(track.id);
+        deck.el.src = streamUrl(track.id);
       } else {
         // 直結では一度受け取りきる。待つあいだに曲が変わっていたら捨てる。
         const url = await fetchTrackObjectUrl(track.id);
-        if (this.loadedTrackId !== track.id) {
+        if (deck.trackId !== track.id) {
           URL.revokeObjectURL(url);
-          return;
+          return false;
         }
-        this.objectUrl = url;
-        el.src = url;
+        deck.objectUrl = url;
+        deck.el.src = url;
       }
-
-      el.load();
-      this.startPlayback();
+      deck.el.load();
+      return true;
     } catch (error) {
-      usePlayer
-        .getState()
-        .reportError(error instanceof Error ? error.message : "曲を取得できませんでした。");
-      usePlayer.getState().reportPlaying(false);
+      if (deck === this.current) {
+        usePlayer
+          .getState()
+          .reportError(error instanceof Error ? error.message : "曲を取得できませんでした。");
+        usePlayer.getState().reportPlaying(false);
+      }
+      deck.trackId = null;
+      return false;
     }
   }
 
   private startPlayback(): void {
-    const el = this.el;
-    if (!el) return;
-
     const player = usePlayer.getState();
-    el.volume = player.muted ? 0 : player.volume;
-    player.reportLoading(true);
+    const target = player.muted ? 0 : player.volume;
+    const el = this.current.el;
 
-    void el.play().catch((error: unknown) => {
-      usePlayer.getState().reportError(describePlayRejection(error));
-      usePlayer.getState().reportPlaying(false);
-    });
+    player.reportLoading(true);
+    // 無音から立ち上げる。いきなり最大で始めると頭が弾ける。
+    el.volume = 0;
+
+    void el
+      .play()
+      .then(() => this.fade(el, target, EDGE_FADE_MS))
+      .catch((error: unknown) => {
+        usePlayer.getState().reportError(describePlayRejection(error));
+        usePlayer.getState().reportPlaying(false);
+      });
 
     this.syncMediaSession();
   }
 
-  /** 受け取りきった音声の後始末。放っておくと端末の記憶を食い続ける。 */
-  private releaseObjectUrl(): void {
-    if (!this.objectUrl) return;
-    URL.revokeObjectURL(this.objectUrl);
-    this.objectUrl = null;
-  }
-
   private pause(): void {
-    this.el?.pause();
+    const el = this.current.el;
+    // 切るときも一度落としてから止める。
+    this.fade(el, 0, EDGE_FADE_MS, () => el.pause());
   }
 
   private seek(positionMs: number): void {
-    const el = this.el;
-    if (!el) return;
-    // メタデータ未取得のうちは currentTime を受け付けないので、読めてから当てる。
+    const el = this.current.el;
     if (el.readyState === 0) {
-      el.addEventListener("loadedmetadata", () => {
-        el.currentTime = positionMs / 1000;
-      }, { once: true });
+      el.addEventListener(
+        "loadedmetadata",
+        () => {
+          el.currentTime = positionMs / 1000;
+        },
+        { once: true },
+      );
       return;
     }
     el.currentTime = positionMs / 1000;
     this.syncPositionState();
   }
 
-  private setVolume(volume: number, muted: boolean): void {
-    if (!this.el) return;
-    this.el.volume = muted ? 0 : volume;
+  private applyVolume(volume: number, muted: boolean): void {
+    if (!this.decks) return;
+    // 繋いでいる最中は音量比を崩さない。落ち着いてから反映する。
+    if (this.crossfading) return;
+    this.current.el.volume = muted ? 0 : volume;
+  }
+
+  /* ------------------------------ 曲の繋ぎ ------------------------------ */
+
+  /** 残り時間を見て、先読みと繋ぎを始める。 */
+  private async considerCrossfade(): Promise<void> {
+    if (this.crossfading) return;
+
+    const player = usePlayer.getState();
+    if (!player.playing || player.repeat === "one") return;
+
+    const el = this.current.el;
+    if (!Number.isFinite(el.duration) || el.duration <= 0) return;
+
+    const remainingMs = (el.duration - el.currentTime) * 1000;
+    const next = player.peekNext();
+    if (!next) return;
+
+    // 先に用意しておく。直結では受け取りきるまで時間がかかるので早めに。
+    if (remainingMs <= PREFETCH_LEAD_MS && this.prefetchingId !== next.id) {
+      this.prefetchingId = next.id;
+      void this.loadInto(this.standby, next);
+      return;
+    }
+
+    if (remainingMs > CROSSFADE_MS) return;
+    if (this.standby.trackId !== next.id) return;
+
+    await this.beginCrossfade();
+  }
+
+  private async beginCrossfade(): Promise<void> {
+    if (this.crossfading) return;
+    this.crossfading = true;
+
+    const player = usePlayer.getState();
+    const target = player.muted ? 0 : player.volume;
+    const outgoing = this.current;
+    const incoming = this.standby;
+
+    incoming.el.volume = 0;
+    incoming.el.currentTime = 0;
+
+    try {
+      await incoming.el.play();
+    } catch {
+      // 裏側が鳴らせないなら、繋がずに通常の切り替えへ委ねる。
+      this.crossfading = false;
+      return;
+    }
+
+    // 表示上の曲は先に入れ替える。耳より目のほうが遅れて気付きやすい。
+    this.active = this.active === 0 ? 1 : 0;
+    this.prefetchingId = null;
+    usePlayer.getState().advanceToNext();
+    this.syncMediaSession();
+
+    this.fade(outgoing.el, 0, CROSSFADE_MS, () => {
+      outgoing.el.pause();
+      this.releaseObjectUrl(outgoing);
+      outgoing.trackId = null;
+    });
+
+    this.fade(incoming.el, target, CROSSFADE_MS, () => {
+      this.crossfading = false;
+    });
+  }
+
+  /** 音量を滑らかに動かす。 */
+  private fade(
+    el: HTMLAudioElement,
+    to: number,
+    durationMs: number,
+    done?: () => void,
+  ): void {
+    const from = el.volume;
+    const steps = Math.max(1, Math.round(durationMs / FADE_STEP_MS));
+    let step = 0;
+
+    const timer = setInterval(() => {
+      step += 1;
+      const ratio = Math.min(1, step / steps);
+      el.volume = Math.min(1, Math.max(0, from + (to - from) * ratio));
+      if (ratio >= 1) {
+        clearInterval(timer);
+        this.fadeTimers.delete(timer);
+        done?.();
+      }
+    }, FADE_STEP_MS);
+
+    this.fadeTimers.add(timer);
+  }
+
+  private releaseObjectUrl(deck: Deck): void {
+    if (!deck.objectUrl) return;
+    URL.revokeObjectURL(deck.objectUrl);
+    deck.objectUrl = null;
   }
 
   /* ---------------- ロック画面・コントロールセンター ---------------- */
@@ -272,7 +419,6 @@ class AudioEngine {
     if (!("mediaSession" in navigator)) return;
     const player = usePlayer.getState();
     const track = player.current();
-
     const artwork = artworkUrl(track?.artworkUrl);
 
     navigator.mediaSession.metadata = track
@@ -296,8 +442,8 @@ class AudioEngine {
   /** ロック画面のシークバーに現在地を反映する。 */
   private syncPositionState(): void {
     if (!("mediaSession" in navigator) || !navigator.mediaSession.setPositionState) return;
-    const el = this.el;
-    if (!el || !Number.isFinite(el.duration) || el.duration <= 0) return;
+    const el = this.current.el;
+    if (!Number.isFinite(el.duration) || el.duration <= 0) return;
 
     try {
       navigator.mediaSession.setPositionState({

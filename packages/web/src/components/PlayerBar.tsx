@@ -14,6 +14,7 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
+import type { CollectionKind, Track } from "@musicshare/shared";
 import { Artwork } from "./Artwork.js";
 import { ProgressBar } from "./ProgressBar.js";
 import { formatDuration } from "../lib/format.js";
@@ -23,9 +24,19 @@ import { useSession } from "../lib/session-store.js";
 interface Props {
   onToggleSessionPanel: () => void;
   sessionPanelOpen: boolean;
+  /** 再生中の曲名の下から、アーティストのページへ移るための入口。 */
+  onOpenCollection?: (kind: CollectionKind, id: string, title: string) => void;
+  onToggleQueue: () => void;
+  queueOpen: boolean;
 }
 
-export function PlayerBar({ onToggleSessionPanel, sessionPanelOpen }: Props) {
+export function PlayerBar({
+  onToggleSessionPanel,
+  sessionPanelOpen,
+  onOpenCollection,
+  onToggleQueue,
+  queueOpen,
+}: Props) {
   const player = usePlayer();
   const sessionConnected = useSession((s) => s.connected);
   const track = player.current();
@@ -46,7 +57,9 @@ export function PlayerBar({ onToggleSessionPanel, sessionPanelOpen }: Props) {
             />
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-medium">{track.title}</div>
-              <div className="truncate text-xs text-ink-muted">{track.artist}</div>
+              <div className="truncate text-xs text-ink-muted">
+                <ArtistLink track={track} onOpenCollection={onOpenCollection} />
+              </div>
             </div>
             <button
               type="button"
@@ -101,7 +114,9 @@ export function PlayerBar({ onToggleSessionPanel, sessionPanelOpen }: Props) {
               />
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium">{track.title}</div>
-                <div className="truncate text-xs text-ink-muted">{track.artist}</div>
+                <div className="truncate text-xs text-ink-muted">
+                  <ArtistLink track={track} onOpenCollection={onOpenCollection} />
+                </div>
               </div>
               <button
                 type="button"
@@ -210,7 +225,8 @@ export function PlayerBar({ onToggleSessionPanel, sessionPanelOpen }: Props) {
 
           <button
             type="button"
-            className="text-ink-muted transition hover:text-ink"
+            onClick={onToggleQueue}
+            className={`transition ${queueOpen ? "text-accent" : "text-ink-muted hover:text-ink"}`}
             aria-label="再生キュー"
           >
             <ListMusic className="size-4" />
@@ -241,6 +257,26 @@ export function PlayerBar({ onToggleSessionPanel, sessionPanelOpen }: Props) {
         </div>
       </div>
     </footer>
+  );
+}
+
+/** 再生中の曲のアーティスト名。移動先が分かる場合だけ押せるようにする。 */
+function ArtistLink({
+  track,
+  onOpenCollection,
+}: {
+  track: Track;
+  onOpenCollection?: (kind: CollectionKind, id: string, title: string) => void;
+}) {
+  if (!track.artistId || !onOpenCollection) return <>{track.artist}</>;
+  return (
+    <button
+      type="button"
+      onClick={() => onOpenCollection("artist", track.artistId!, track.artist)}
+      className="truncate transition hover:text-ink hover:underline"
+    >
+      {track.artist}
+    </button>
   );
 }
 

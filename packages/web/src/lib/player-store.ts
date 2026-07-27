@@ -36,6 +36,8 @@ interface PlayerState {
   volume: number;
   muted: boolean;
   shuffle: boolean;
+  /** かき混ぜる前の並び。解除したときに戻すために持つ。 */
+  orderedQueue: Track[] | null;
   repeat: RepeatMode;
   /** 取得中。頭出しまでの待ちを UI に出すために持つ。 */
   loading: boolean;
@@ -46,6 +48,10 @@ interface PlayerState {
 
   current: () => Track | undefined;
   durationMs: () => number;
+  /** 次に来る曲。順番を進めずに覗くだけ。繋ぎの先読みに使う。 */
+  peekNext: () => Track | undefined;
+  /** 繋ぎ終わったあとに順番だけ進める。再生の指示は出さない。 */
+  advanceToNext: () => void;
 
   playQueue: (tracks: Track[], startIndex: number) => void;
   playTrack: (track: Track) => void;
@@ -79,6 +85,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   volume: 0.8,
   muted: false,
   shuffle: false,
+  orderedQueue: null,
   repeat: "off",
   loading: false,
   error: null,
@@ -100,10 +107,37 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     return get().loadedDurationMs;
   },
 
+  peekNext: () => {
+    const { queue, index, repeat } = get();
+    if (queue.length === 0) return undefined;
+    const nextIndex = index + 1;
+    if (nextIndex < queue.length) return queue[nextIndex];
+    return repeat === "all" ? queue[0] : undefined;
+  },
+
+  advanceToNext: () => {
+    const { queue, index, repeat } = get();
+    const nextIndex = index + 1;
+    if (nextIndex < queue.length) {
+      set({ index: nextIndex, positionMs: 0, loadedDurationMs: 0, error: null });
+    } else if (repeat === "all") {
+      set({ index: 0, positionMs: 0, loadedDurationMs: 0, error: null });
+    }
+  },
+
   playQueue: (tracks, startIndex) => {
     if (tracks.length === 0) return;
     const index = Math.min(Math.max(0, startIndex), tracks.length - 1);
-    set({ queue: tracks, index, positionMs: 0, loadedDurationMs: 0, error: null });
+    // 新しい並びを入れたら、かき混ぜる前の控えは意味を失う。
+    set({
+      queue: tracks,
+      index,
+      positionMs: 0,
+      loadedDurationMs: 0,
+      error: null,
+      orderedQueue: null,
+      shuffle: false,
+    });
     backend?.play();
   },
 
@@ -186,7 +220,33 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     backend?.setVolume(get().volume, muted);
   },
 
-  toggleShuffle: () => set((s) => ({ shuffle: !s.shuffle })),
+  /**
+   * 並びをかき混ぜる。
+   *
+   * 押した時点で残りの順番を変え、いま鳴っている曲は先頭に置く。
+   * 解除したときに元へ戻せるよう、変える前の並びを控えておく。
+   */
+  toggleShuffle: () => {
+    const { shuffle, queue, index, orderedQueue } = get();
+
+    if (shuffle) {
+      const restored = orderedQueue ?? queue;
+      const playing = queue[index];
+      const restoredIndex = playing ? restored.findIndex((t) => t.id === playing.id) : 0;
+      set({
+        shuffle: false,
+        queue: restored,
+        index: restoredIndex >= 0 ? restoredIndex : 0,
+        orderedQueue: null,
+      });
+      return;
+    }
+
+    const playing = queue[index];
+    const rest = queue.filter((_, i) => i !== index);
+    const mixed = playing ? [playing, ...shuffleArray(rest)] : shuffleArray(rest);
+    set({ shuffle: true, orderedQueue: queue, queue: mixed, index: 0 });
+  },
 
   cycleRepeat: () =>
     set((s) => ({
@@ -208,6 +268,16 @@ export const usePlayer = create<PlayerState>((set, get) => ({
 
   setSessionRole: (followingSession, isSessionHost) => set({ followingSession, isSessionHost }),
 }));
+
+/** 並べ替えた写しを返す。元の配列には触らない。 */
+function shuffleArray<T>(items: T[]): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j]!, copy[i]!];
+  }
+  return copy;
+}
 
 /** ホストでないのにセッションに参加している間は、再生操作を握らせない。 */
 export function canControl(state: {

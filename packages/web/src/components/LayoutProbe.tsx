@@ -78,6 +78,13 @@ export function LayoutProbe() {
   );
 }
 
+/**
+ * 表示するかどうか。
+ *
+ * ホーム画面から起動した場合、開始 URL が固定されるので問い合わせ文字列が残らない。
+ * 実機で数値を見るあいだは既定で出しておき、`?debug=off` で消せるようにする。
+ * 余白の調整が済んだら既定を false に戻す。
+ */
 export function layoutProbeEnabled(): boolean {
-  return new URLSearchParams(window.location.search).get("debug") === "layout";
+  return new URLSearchParams(window.location.search).get("debug") !== "off";
 }

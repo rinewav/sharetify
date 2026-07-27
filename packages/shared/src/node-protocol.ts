@@ -51,6 +51,8 @@ export interface CollectionResponse {
   id: string;
   title: string;
   subtitle?: string;
+  /** 副題からさらに辿れる先。アルバムならアーティストのページ。 */
+  subtitleLink?: { kind: CollectionKind; id: string };
   artworkUrl?: string;
   tracks: Track[];
 }

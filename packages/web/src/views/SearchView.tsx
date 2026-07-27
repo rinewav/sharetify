@@ -11,12 +11,13 @@ interface Props {
   cacheStates: Record<string, CacheState>;
   health: NodeHealth | null;
   onNavigate: (route: Route) => void;
+  onOpenCollection: (kind: CollectionKind, id: string, title: string) => void;
 }
 
 const EMPTY: SearchResponse = { tracks: [], albums: [], artists: [], playlists: [] };
 
 /** 曲だけでなく、アーティスト・アルバム・プレイリストも並べる。 */
-export function SearchView({ cacheStates, health, onNavigate }: Props) {
+export function SearchView({ cacheStates, health, onNavigate, onOpenCollection }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResponse>(EMPTY);
   const [error, setError] = useState<string | null>(null);
@@ -162,6 +163,7 @@ export function SearchView({ cacheStates, health, onNavigate }: Props) {
             cacheStates={cacheStates}
             onPlay={(index) => playQueue(tracks, index)}
             showAlbum={false}
+            onOpenCollection={onOpenCollection}
           />
         </section>
       )}

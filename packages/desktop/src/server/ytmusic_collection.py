@@ -32,7 +32,19 @@ def join_artists(entry: dict) -> str:
     return "、".join(names) if names else "不明"
 
 
-def to_track(entry: dict, fallback_artwork: str | None, fallback_album: str | None) -> dict | None:
+def first_artist_id(entry: dict) -> str | None:
+    for artist in entry.get("artists") or []:
+        if artist.get("id"):
+            return artist["id"]
+    return None
+
+
+def to_track(
+    entry: dict,
+    fallback_artwork: str | None,
+    fallback_album: str | None,
+    fallback_album_id: str | None = None,
+) -> dict | None:
     video_id = entry.get("videoId")
     title = entry.get("title")
     if not video_id or not title:
@@ -41,6 +53,7 @@ def to_track(entry: dict, fallback_artwork: str | None, fallback_album: str | No
     seconds = entry.get("duration_seconds")
     album = entry.get("album")
     album_name = album.get("name") if isinstance(album, dict) else album
+    album_id = album.get("id") if isinstance(album, dict) else None
 
     return {
         "id": video_id,
@@ -52,6 +65,8 @@ def to_track(entry: dict, fallback_artwork: str | None, fallback_album: str | No
         "album": album_name or fallback_album,
         "durationMs": int(seconds * 1000) if seconds else None,
         "artworkUrl": pick_thumbnail(entry.get("thumbnails")) or fallback_artwork,
+        "artistId": first_artist_id(entry),
+        "albumId": album_id or fallback_album_id,
     }
 
 
@@ -63,14 +78,18 @@ def fetch_album(client, browse_id: str) -> dict:
 
     tracks = [
         t
-        for t in (to_track(e, artwork, title) for e in data.get("tracks") or [])
+        for t in (to_track(e, artwork, title, browse_id) for e in data.get("tracks") or [])
         if t is not None
     ]
+    # 副題のアーティストから、その人のページへ辿れるようにする。
+    artist_id = first_artist_id(data)
+
     return {
         "kind": "album",
         "id": browse_id,
         "title": title,
         "subtitle": "、".join(artists) if artists else None,
+        "subtitleLink": {"kind": "artist", "id": artist_id} if artist_id else None,
         "artworkUrl": artwork,
         "tracks": tracks,
     }

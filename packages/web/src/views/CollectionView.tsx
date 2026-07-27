@@ -13,10 +13,17 @@ interface Props {
   /** 開く前に分かっている名前。取得を待つ間の見出しに使う。 */
   fallbackTitle?: string;
   cacheStates: Record<string, CacheState>;
+  onOpenCollection: (kind: CollectionKind, id: string, title: string) => void;
 }
 
 /** 検索から開いたアルバム・プレイリスト・アーティストの中身。 */
-export function CollectionView({ kind, id, fallbackTitle, cacheStates }: Props) {
+export function CollectionView({
+  kind,
+  id,
+  fallbackTitle,
+  cacheStates,
+  onOpenCollection,
+}: Props) {
   const [data, setData] = useState<CollectionResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const playQueue = usePlayer((s) => s.playQueue);
@@ -56,7 +63,20 @@ export function CollectionView({ kind, id, fallbackTitle, cacheStates }: Props) 
           <h1 className="mt-2 text-3xl font-black tracking-tight sm:truncate sm:text-6xl">
             {title}
           </h1>
-          {data?.subtitle && <p className="mt-3 text-sm text-ink-muted">{data.subtitle}</p>}
+          {data?.subtitle &&
+            (data.subtitleLink ? (
+              <button
+                type="button"
+                onClick={() =>
+                  onOpenCollection(data.subtitleLink!.kind, data.subtitleLink!.id, data.subtitle!)
+                }
+                className="mt-3 block text-sm text-ink-muted transition hover:text-ink hover:underline"
+              >
+                {data.subtitle}
+              </button>
+            ) : (
+              <p className="mt-3 text-sm text-ink-muted">{data.subtitle}</p>
+            ))}
           {tracks.length > 0 && (
             <div className="mt-3 flex flex-wrap items-center gap-1.5 text-sm text-ink-muted">
               <span>{tracks.length} 曲</span>
@@ -118,6 +138,7 @@ export function CollectionView({ kind, id, fallbackTitle, cacheStates }: Props) 
             cacheStates={cacheStates}
             onPlay={(index) => playQueue(tracks, index)}
             showAlbum={kind !== "album"}
+            onOpenCollection={onOpenCollection}
           />
         </div>
       )}

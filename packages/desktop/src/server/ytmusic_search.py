@@ -43,6 +43,14 @@ def join_artists(entry: dict) -> str:
     return "、".join(names) if names else "不明"
 
 
+def first_artist_id(entry: dict) -> str | None:
+    """代表アーティストの識別子。表示名からは辿れないので別に持たせる。"""
+    for artist in entry.get("artists") or []:
+        if artist.get("id"):
+            return artist["id"]
+    return None
+
+
 def to_track(entry: dict) -> dict | None:
     video_id = entry.get("videoId")
     title = entry.get("title")
@@ -50,15 +58,18 @@ def to_track(entry: dict) -> dict | None:
         return None
 
     seconds = entry.get("duration_seconds")
+    album = entry.get("album") or {}
     return {
         "id": video_id,
         "sourceKind": "remote",
         "sourceId": video_id,
         "title": title,
         "artist": join_artists(entry),
-        "album": (entry.get("album") or {}).get("name"),
+        "album": album.get("name"),
         "durationMs": int(seconds * 1000) if seconds else None,
         "artworkUrl": pick_thumbnail(entry.get("thumbnails")),
+        "artistId": first_artist_id(entry),
+        "albumId": album.get("id"),
     }
 
 

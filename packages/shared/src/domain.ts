@@ -21,6 +21,10 @@ export interface Track {
   /** ミリ秒。不明なら undefined。 */
   durationMs?: number;
   artworkUrl?: string;
+  /** アーティストのページを開くための識別子。表示名から辿れないので別に持つ。 */
+  artistId?: string;
+  /** 収録アルバムのページを開くための識別子。 */
+  albumId?: string;
 }
 
 export interface Album {

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ChevronLeft, ChevronRight, Wifi, WifiOff } from "lucide-react";
-import type { CacheState, NodeHealth } from "@musicshare/shared";
+import type { CacheState, CollectionKind, NodeHealth } from "@musicshare/shared";
 import { LayoutProbe, layoutProbeEnabled } from "./components/LayoutProbe.js";
 import { MobileNav } from "./components/MobileNav.js";
 import { PairingSheet, useAutoPairing } from "./components/PairingSheet.js";
 import { PlayerBar } from "./components/PlayerBar.js";
+import { QueuePanel } from "./components/QueuePanel.js";
 import { SessionPanel } from "./components/SessionPanel.js";
 import { Sidebar } from "./components/Sidebar.js";
 import { audioEngine } from "./lib/audio-engine.js";
@@ -26,6 +27,7 @@ export default function App() {
   const [sessionPanelOpen, setSessionPanelOpen] = useState(false);
 
   const [pairingOpen, setPairingOpen] = useState(false);
+  const [queueOpen, setQueueOpen] = useState(false);
 
   const sessionConnected = useSession((s) => s.connected);
   const playerError = usePlayer((s) => s.error);
@@ -66,12 +68,23 @@ export default function App() {
   const panelOpen = sessionPanelOpen || sessionConnected;
   const nodeOnline = health?.ok === true;
 
+  /** 曲の情報からアルバムやアーティストのページへ移る。 */
+  const openCollection = (kind: CollectionKind, id: string, title: string) =>
+    navigate({ name: "collection", kind, id, title });
+
   const content = useMemo(() => {
     switch (route.name) {
       case "home":
         return <HomeView playlists={mockPlaylists} onNavigate={navigate} />;
       case "search":
-        return <SearchView cacheStates={cacheStates} health={health} onNavigate={navigate} />;
+        return (
+          <SearchView
+            cacheStates={cacheStates}
+            health={health}
+            onNavigate={navigate}
+            onOpenCollection={openCollection}
+          />
+        );
       case "collection":
         return (
           <CollectionView
@@ -79,6 +92,7 @@ export default function App() {
             id={route.id}
             fallbackTitle={route.title}
             cacheStates={cacheStates}
+            onOpenCollection={openCollection}
           />
         );
       case "groups":
@@ -172,6 +186,12 @@ export default function App() {
             <SessionPanel onClose={() => setSessionPanelOpen(false)} />
           </div>
         )}
+
+        {queueOpen && !panelOpen && (
+          <div className="hidden lg:block">
+            <QueuePanel onClose={() => setQueueOpen(false)} />
+          </div>
+        )}
       </div>
 
       {/* 狭い画面では覆いかぶせる。横に並べる余地がない。 */}
@@ -181,9 +201,18 @@ export default function App() {
         </div>
       )}
 
+      {queueOpen && !panelOpen && (
+        <div className="fixed inset-0 z-20 bg-base/95 p-2 lg:hidden">
+          <QueuePanel onClose={() => setQueueOpen(false)} fullWidth />
+        </div>
+      )}
+
       <PlayerBar
         sessionPanelOpen={panelOpen}
         onToggleSessionPanel={() => setSessionPanelOpen((open) => !open)}
+        onOpenCollection={openCollection}
+        onToggleQueue={() => setQueueOpen((open) => !open)}
+        queueOpen={queueOpen}
       />
 
       <MobileNav
