@@ -1,29 +1,26 @@
-import type { Track } from "@sharetify/shared";
+import type { HistoryEntry, Track } from "@sharetify/shared";
 
 /**
  * 何をいつ聴いたかの控え。
  *
- * この端末の中だけに置く。中央サーバーへ送るのは、
- * 後で集計したごく粗い値だけ (よく聴く演奏者の上位など)。
- * 誰が何を聴いたかを外に出さないための線引き。
+ * この端末と、この端末が繋いだ自分の PC の間だけに置く。
+ * 中央サーバーへ送るのは、後で集計したごく粗い値だけ
+ * (よく聴く演奏者の上位など)。誰が何を聴いたかを外に出さないための線引き。
+ *
+ * PC と分け合うのは、端末が替わったり、覚えているものが消えたりするから。
+ * 電話で聴いたものが PC のおすすめに効き、その逆も効くようにする。
  *
  * おすすめの「種」はここから選ぶ。何を勧めるかを自前で考えるのではなく、
  * 手掛かりだけこちらで決めて、あとは供給元の推薦に委ねる。
  */
+
+export type { HistoryEntry };
 
 const STORAGE_KEY = "sharetify.history";
 /** 残す件数。古いものから落とす。 */
 const MAX_ENTRIES = 3000;
 /** これ未満しか鳴っていない曲は「聴いた」と数えない。 */
 const MIN_PLAYED_MS = 20_000;
-
-export interface HistoryEntry {
-  track: Track;
-  /** 再生を始めた時刻 (epoch ms)。 */
-  playedAt: number;
-  /** 実際に鳴った長さ。途中で送った場合はそのぶん短い。 */
-  playedMs: number;
-}
 
 let cache: HistoryEntry[] | null = null;
 
@@ -78,6 +75,7 @@ export function recordPlay(track: Track, playedMs: number): void {
   const entries = load();
   entries.unshift({ track, playedAt: Date.now(), playedMs });
   save(entries.slice(0, MAX_ENTRIES));
+  notifyChanged();
 }
 
 export function allHistory(): HistoryEntry[] {
@@ -88,6 +86,86 @@ export function clearHistory(): void {
   cache = [];
   localStorage.removeItem(STORAGE_KEY);
   notifyChanged();
+}
+
+/**
+ * 同じ一回を指す印。
+ *
+ * 曲だけでは足りない。同じ曲を二度聴けば二回ぶんある。
+ * 時刻を合わせて見るが、端末と PC で時計がぴったり同じとは限らないので、
+ * 秒より細かいところは切り捨てる。PC 側と同じ決め方をする。
+ */
+function keyOf(entry: HistoryEntry): string {
+  return `${entry.track.id}@${Math.floor(entry.playedAt / 1000)}`;
+}
+
+/**
+ * PC から受け取った跡を取り込む。
+ *
+ * 同じ一回を二度数えない。繋ぐたびに手持ちを差し出すので重なりは必ず出る。
+ * 数え直すと、聴いた回数が繋いだ回数だけ増えてしまう。
+ *
+ * 戻り値は、初めて知ったものの数。
+ */
+export function absorbHistory(incoming: HistoryEntry[]): number {
+  if (incoming.length === 0) return 0;
+
+  const current = load();
+  const known = new Set(current.map(keyOf));
+  const fresh = incoming.filter((entry) => {
+    const key = keyOf(entry);
+    if (known.has(key)) return false;
+    known.add(key);
+    return true;
+  });
+
+  if (fresh.length === 0) return 0;
+
+  save(
+    [...fresh, ...current].sort((a, b) => b.playedAt - a.playedAt).slice(0, MAX_ENTRIES),
+  );
+  notifyChanged();
+  return fresh.length;
+}
+
+/* --------------------- 突き合わせた所までの印 --------------------- */
+
+/**
+ * どこまで受け取ったかの印。
+ *
+ * 相手ごとに覚える。別の PC に繋いだら、その相手とは初めから。
+ * 聴いた時刻ではなく、相手が預かった順の番号なので、
+ * 別の端末があとから足した古い跡も取りこぼさない。
+ */
+const CURSOR_KEY = "sharetify.history-cursor";
+
+function cursors(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(CURSOR_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, number>) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function syncCursor(peer: string): number | undefined {
+  return cursors()[peer];
+}
+
+export function rememberCursor(peer: string, cursor: number): void {
+  try {
+    localStorage.setItem(CURSOR_KEY, JSON.stringify({ ...cursors(), [peer]: cursor }));
+  } catch {
+    // 覚えられなくても、次はまとめて受け取り直すだけ。
+  }
+}
+
+export function forgetCursors(): void {
+  try {
+    localStorage.removeItem(CURSOR_KEY);
+  } catch {
+    // 消せなくても困らない。
+  }
 }
 
 /** 何回ぶん覚えているか。消す前に見せて、判断してもらう。 */

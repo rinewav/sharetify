@@ -146,6 +146,54 @@ export interface DiscoverResponse {
   sections: DiscoverSection[];
 }
 
+/* ------------------------------------------------------------------
+ * 聴いた跡
+ *
+ * 何をいつ聴いたかは、その人の PC と、その人が繋いだ端末の間だけを
+ * 行き来する。中央サーバーは通らない。誰が何を聴いたかを外に出さない
+ * ための線引きで、ここが崩れると設計の前提が変わる。
+ *
+ * 端末は電話を替えたり、覚えているものを消したりする。
+ * PC のほうが長生きするので、そちらを寄せ集める場所にする。
+ * ------------------------------------------------------------------ */
+
+/** 一回ぶんの聴いた跡。 */
+export interface HistoryEntry {
+  track: Track;
+  /** 再生を始めた時刻 (epoch ms)。同じ曲を区別する手掛かりでもある。 */
+  playedAt: number;
+  /** 実際に鳴った長さ。途中で送った場合はそのぶん短い。 */
+  playedMs: number;
+}
+
+/** 端末から預ける跡と、前に突き合わせたのがいつまでかの印。 */
+export interface HistoryMergeRequest {
+  entries: HistoryEntry[];
+  /**
+   * 前に突き合わせたときに受け取った印。
+   *
+   * PC が「いつ預かったか」で数えた番号で、聴いた時刻とは別物。
+   * これより後に預かったぶんだけ返せば、往復で運ぶ量が減る。
+   *
+   * 聴いた時刻で削ると、別の端末があとから足した古い跡を取りこぼす。
+   * 「いつ聴いたか」と「いつこちらに届いたか」は順番が一致しない。
+   *
+   * 初めてなら省く。そのときは直近のぶんがまとめて返る。
+   */
+  since?: number;
+}
+
+export interface HistoryMergeResponse {
+  /** 端末がまだ知らないぶん。新しい順。 */
+  entries: HistoryEntry[];
+  /** PC 側が覚えている総数。 */
+  total: number;
+  /** 端末から受け取って、初めて知ったものの数。 */
+  added: number;
+  /** 次に突き合わせるときに渡す印。 */
+  cursor: number;
+}
+
 export const NODE_ROUTES = {
   health: "/api/health",
   search: "/api/search",
@@ -160,4 +208,7 @@ export const NODE_ROUTES = {
   artwork: "/api/artwork",
   cache: "/api/cache",
   cacheStatus: "/api/cache/status",
+  /** 聴いた跡。PC と端末の間だけで寄せ合う。中央は通らない。 */
+  history: "/api/history",
+  historyMerge: "/api/history/merge",
 } as const;

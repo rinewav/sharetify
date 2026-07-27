@@ -16,6 +16,7 @@ import { Setup, setupDone } from "./components/Setup.js";
 import { SignInSheet } from "./components/SignInSheet.js";
 import { Sidebar } from "./components/Sidebar.js";
 import { audioEngine } from "./lib/audio-engine.js";
+import { startHistorySync } from "./lib/history-sync.js";
 import { storedToken } from "./lib/hub-client.js";
 import { useLibrary } from "./lib/library-store.js";
 import { nodeCacheStatus, nodeHealth } from "./lib/node-client.js";
@@ -63,6 +64,7 @@ export default function App() {
 
   useAudioEngine();
   useLibrarySync();
+  useHistorySync();
 
   /*
    * まだ誰でもないなら名前を決めてもらう。共有には名前が要る。
@@ -381,6 +383,18 @@ function useLibrarySync(): void {
       window.removeEventListener("focus", onFocus);
     };
   }, [refresh]);
+}
+
+/**
+ * 聴いた跡を、自分の PC と分け合う。
+ *
+ * 電話で聴いたものが PC のおすすめに効き、その逆も効くようにする。
+ * 行き来するのは端末と PC の間だけで、中央サーバーは通らない。
+ */
+function useHistorySync(): void {
+  useEffect(() => {
+    startHistorySync();
+  }, []);
 }
 
 /**

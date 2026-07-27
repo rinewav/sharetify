@@ -3,6 +3,8 @@ import type {
   CollectionKind,
   CollectionResponse,
   DiscoverResponse,
+  HistoryEntry,
+  HistoryMergeResponse,
   LyricsResult,
   NodeHealth,
   RadioResponse,
@@ -52,6 +54,28 @@ function viaPeer(): boolean {
  */
 function hasDirectRoute(): boolean {
   return BASE !== "" || isDesktopApp();
+}
+
+/**
+ * いま自分の PC に用が届くか。
+ *
+ * 繋いだ先にいることもあれば、同じ場所にいることもある。
+ * 呼ぶ側から見れば、届くかどうかだけが分かればよい。
+ */
+export function canReachNode(): boolean {
+  return viaPeer() || hasDirectRoute();
+}
+
+/**
+ * 用の届く先を見分ける印。
+ *
+ * 相手ごとに覚えておきたいものがある側から使う。
+ * 合言葉は PC ごとに決まるので、繋いだ先を見分けるのに足りる。
+ * 同じ場所にいるなら、相手は常に自分自身なので固定の名前でよい。
+ */
+export function nodeIdentity(): string | null {
+  if (viaPeer()) return peerClient.peerId ?? "peer";
+  return hasDirectRoute() ? "local" : null;
 }
 
 /**
@@ -284,6 +308,28 @@ export async function nodeInstallToolchain(
 /** 音を取ってくる仕掛けだけを新しくする。 */
 export function nodeUpdateResolver(): Promise<ToolchainStatus> {
   return post<ToolchainStatus>("/api/toolchain/update");
+}
+
+/* ------------------------------ 聴いた跡 ------------------------------ */
+
+/**
+ * 手持ちの跡を PC に預け、まだ知らないぶんを受け取る。
+ *
+ * 行き来するのは、この端末と自分の PC の間だけ。中央は通らない。
+ */
+export function nodeMergeHistory(
+  entries: HistoryEntry[],
+  since?: number,
+): Promise<HistoryMergeResponse> {
+  return post<HistoryMergeResponse>("/api/history/merge", {
+    entries,
+    ...(since !== undefined ? { since } : {}),
+  });
+}
+
+/** PC が預かっているものを捨てる。端末側で消したときに合わせる。 */
+export function nodeClearHistory(): Promise<HistoryMergeResponse> {
+  return post<HistoryMergeResponse>("/api/history/clear");
 }
 
 /* ------------------------------ 迎える側 ------------------------------ */

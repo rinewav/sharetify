@@ -4,6 +4,7 @@ import type { NodeHealth } from "@sharetify/shared";
 import { Sheet } from "./Sheet.js";
 import { useLibrary } from "../lib/library-store.js";
 import {
+  canReachNode,
   lastfmBegin,
   lastfmComplete,
   lastfmDisconnect,
@@ -11,8 +12,10 @@ import {
   lastfmStatus,
   type LastfmStatus,
 } from "../lib/node-client.js";
+import { clearSharedHistory } from "../lib/history-sync.js";
 import { cacheUsage, clearCache, formatBytes } from "../lib/offline-cache.js";
-import { clearHistory, historySize } from "../lib/play-history.js";
+import { peerClient } from "../lib/peer-client.js";
+import { clearHistory, historySize, onHistoryChange } from "../lib/play-history.js";
 import { setScrobblingEnabled } from "../lib/scrobbler.js";
 
 interface Props {
@@ -159,6 +162,10 @@ function NameSection() {
 function HistorySection() {
   const [count, setCount] = useState(() => historySize());
   const [asking, setAsking] = useState(false);
+  const shared = usePeerReady();
+
+  // 分け合っている間は、向こうで増えたぶんもここに出る。
+  useEffect(() => onHistoryChange(() => setCount(historySize())), []);
 
   return (
     <Section title="聴いた跡">
@@ -167,6 +174,11 @@ function HistorySection() {
           ? "まだありません。聴いた曲がここに溜まります。"
           : `${count} 回ぶん。ホームのおすすめは、この跡から組み立てています。`}
       </p>
+      {shared && (
+        <p className="mt-1 text-xs text-ink-muted">
+          自分の PC と分け合っています。運営側のサーバーには送っていません。
+        </p>
+      )}
 
       {count > 0 &&
         (asking ? (
@@ -174,6 +186,7 @@ function HistorySection() {
             <p className="text-xs leading-relaxed text-ink-muted">
               消すと、ホームのおすすめと振り返りが白紙に戻ります。
               プレイリストと気に入った曲は残ります。
+              {shared && " つないでいる PC に預けたぶんも消えます。"}
             </p>
             <div className="mt-3 flex gap-2">
               <button
@@ -186,9 +199,15 @@ function HistorySection() {
               <button
                 type="button"
                 onClick={() => {
-                  clearHistory();
-                  setCount(0);
-                  setAsking(false);
+                  /*
+                   * 先に PC 側を消す。こちらを先に消すと、
+                   * 次に繋いだときに向こうから戻ってきてしまう。
+                   */
+                  void clearSharedHistory().finally(() => {
+                    clearHistory();
+                    setCount(0);
+                    setAsking(false);
+                  });
                 }}
                 className="flex-1 rounded-full bg-red-500/15 py-2 text-xs text-red-300 transition hover:bg-red-500/25"
               >
@@ -401,4 +420,11 @@ function LastfmSection({ nodeOnline }: { nodeOnline: boolean }) {
       {error && <p className="mt-2 text-xs text-amber-300">{error}</p>}
     </Section>
   );
+}
+
+/** 自分の PC に用が届くか。分け合っていることを伝えるために見る。 */
+function usePeerReady(): boolean {
+  const [ready, setReady] = useState(() => canReachNode());
+  useEffect(() => peerClient.onStatus(() => setReady(canReachNode())), []);
+  return ready;
 }

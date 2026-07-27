@@ -18,6 +18,15 @@ import {
 } from "@sharetify/shared";
 import { artworkResponse } from "@sharetify/shared/server";
 import {
+  clearHistory as clearHistoryStore,
+  historyCount,
+  historyCursor,
+  historySince,
+  listHistory,
+  loadHistory,
+  mergeHistory,
+} from "./history.js";
+import {
   cachePathFor,
   cachedCount,
   ensureCached,
@@ -251,6 +260,49 @@ export function createNodeApp(): Hono {
 
   app.get(NODE_ROUTES.cacheStatus, (c) => c.json({ entries: listEntries() }));
 
+  /*
+   * 聴いた跡。
+   *
+   * 端末は替わるし、覚えているものを消すこともある。
+   * この PC のほうが長生きするので、寄せ集める場所をこちらに置く。
+   * 電話で聴いたものが PC のおすすめに効き、その逆も効く。
+   *
+   * ここを行き来するのは、この機械と、この機械に繋いだ端末の間だけ。
+   * 中央サーバーは通らない。
+   */
+  app.get(NODE_ROUTES.history, (c) =>
+    c.json({ entries: listHistory(), total: historyCount(), added: 0, cursor: historyCursor() }),
+  );
+
+  app.post(NODE_ROUTES.historyMerge, async (c) => {
+    const body = await c.req.json<{ entries?: unknown[]; since?: number }>().catch(() => null);
+    if (!Array.isArray(body?.entries)) return c.json({ error: "entries is required" }, 400);
+
+    const added = mergeHistory(body.entries);
+
+    /*
+     * 端末がまだ知らないぶんだけ返す。
+     *
+     * 印より後に預かったものを渡す。聴いた時刻で削ると、
+     * 別の端末があとから足した古い跡を取りこぼす。
+     */
+    const since =
+      typeof body.since === "number" && Number.isFinite(body.since) ? body.since : undefined;
+
+    return c.json({
+      entries: historySince(since),
+      total: historyCount(),
+      added,
+      cursor: historyCursor(),
+    });
+  });
+
+  /** 端末側で捨てたときに、こちらも合わせる。 */
+  app.post("/api/history/clear", async (c) => {
+    await clearHistoryStore();
+    return c.json({ entries: [], total: 0, added: 0, cursor: historyCursor() });
+  });
+
   /** ある曲を種に、続けて流す曲を並べる。 */
   app.get(NODE_ROUTES.radio, async (c) => {
     const trackId = c.req.query("trackId")?.trim();
@@ -473,6 +525,7 @@ function serveWebApp(app: Hono, webRoot: string): void {
 export async function startNodeServer(port = NODE_DEFAULT_PORT, webRoot?: string) {
   await initCache();
   await loadLastfmConfig();
+  await loadHistory();
 
   /*
    * 立ち上げる時点で、使える実行ファイルを見つけておく。
