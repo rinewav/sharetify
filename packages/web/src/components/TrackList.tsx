@@ -63,7 +63,12 @@ export function TrackList({ tracks, cacheStates = {}, onPlay, showAlbum = true }
               </div>
 
               <div className="flex min-w-0 items-center gap-3">
-                <Artwork seed={track.id} label={track.title} className="size-10" />
+                <Artwork
+                  seed={track.id}
+                  label={track.title}
+                  src={track.artworkUrl}
+                  className="size-10"
+                />
                 <div className="min-w-0">
                   <div className={`truncate text-sm ${isCurrent ? "text-accent" : "text-ink"}`}>
                     {track.title}

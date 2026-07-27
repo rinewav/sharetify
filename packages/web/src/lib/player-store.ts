@@ -87,10 +87,17 @@ export const usePlayer = create<PlayerState>((set, get) => ({
 
   current: () => get().queue[get().index],
 
+  /*
+   * 長さはカタログの値を先に信じる。
+   *
+   * 音声ファイルから読める長さは、末尾に無音が続く素材だと実際の曲より長く出る。
+   * カタログ側は曲としての長さを持っているので、そちらのほうが表示に適している。
+   * 持っていない場合だけ、読み込んだ音声の値で代用する。
+   */
   durationMs: () => {
-    const loaded = get().loadedDurationMs;
-    if (loaded > 0) return loaded;
-    return get().current()?.durationMs ?? 0;
+    const declared = get().current()?.durationMs;
+    if (declared && declared > 0) return declared;
+    return get().loadedDurationMs;
   },
 
   playQueue: (tracks, startIndex) => {

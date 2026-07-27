@@ -59,3 +59,12 @@ export async function nodeCache(trackIds: string[]): Promise<void> {
 export function streamUrl(trackId: string): string {
   return `${BASE}/api/stream?trackId=${encodeURIComponent(trackId)}`;
 }
+
+/**
+ * ジャケットも node 経由で取る。
+ * クライアントから外部へ直接取りに行かせない方針をここでも通す。
+ */
+export function artworkUrl(source: string | undefined): string | undefined {
+  if (!source) return undefined;
+  return `${BASE}/api/artwork?url=${encodeURIComponent(source)}`;
+}

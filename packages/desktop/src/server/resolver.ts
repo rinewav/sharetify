@@ -1,4 +1,6 @@
 import { spawn } from "node:child_process";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Track } from "@musicshare/shared";
 
 /**
@@ -12,6 +14,10 @@ import type { Track } from "@musicshare/shared";
  */
 
 const RESOLVER_BIN = process.env.MUSICSHARE_RESOLVER ?? "yt-dlp";
+const PYTHON_BIN = process.env.MUSICSHARE_PYTHON ?? "python3";
+
+/** カタログ検索スクリプトの場所。ビルド後もソース側を参照する。 */
+const CATALOG_SCRIPT = join(dirname(fileURLToPath(import.meta.url)), "ytmusic_search.py");
 
 export interface ResolverError {
   kind: "unavailable" | "failed";
@@ -25,9 +31,9 @@ export class ResolverFailure extends Error {
   }
 }
 
-function run(args: string[], timeoutMs = 30_000): Promise<string> {
+function run(bin: string, args: string[], timeoutMs = 30_000): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn(RESOLVER_BIN, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(bin, args, { stdio: ["ignore", "pipe", "pipe"] });
 
     let stdout = "";
     let stderr = "";
@@ -50,7 +56,7 @@ function run(args: string[], timeoutMs = 30_000): Promise<string> {
       reject(
         new ResolverFailure({
           kind: "unavailable",
-          message: `${RESOLVER_BIN} が見つかりません。初回セットアップを実行してください。`,
+          message: `${bin} が見つかりません。初回セットアップを実行してください。`,
         }),
       );
     });
@@ -84,7 +90,7 @@ function summarize(stderr: string): string {
 
 export async function isResolverReady(): Promise<{ ready: boolean; message?: string }> {
   try {
-    await run(["--version"], 10_000);
+    await run(RESOLVER_BIN, ["--version"], 10_000);
     return { ready: true };
   } catch (error) {
     const message =
@@ -102,8 +108,50 @@ interface RawSearchEntry {
   duration?: number;
 }
 
+interface CatalogResult {
+  tracks?: (Track & { durationMs?: number | null; album?: string | null })[];
+  error?: string;
+  message?: string;
+}
+
+/**
+ * 検索。
+ *
+ * まず楽曲カタログを引く。動画としての検索だと、末尾に無音や静止画が続くものや
+ * 数時間のミックスばかりが上位に来てしまい、曲名とアーティストも分離できない。
+ * カタログ側が使えないときだけ、動画検索に落とす。
+ */
 export async function search(query: string, limit = 20): Promise<Track[]> {
-  const stdout = await run([
+  try {
+    return await catalogSearch(query, limit);
+  } catch {
+    return await videoSearch(query, limit);
+  }
+}
+
+async function catalogSearch(query: string, limit: number): Promise<Track[]> {
+  const stdout = await run(PYTHON_BIN, [CATALOG_SCRIPT, query, String(limit)], 45_000);
+
+  const parsed = JSON.parse(stdout) as CatalogResult;
+  if (parsed.error || !parsed.tracks) {
+    throw new ResolverFailure({
+      kind: parsed.error === "unavailable" ? "unavailable" : "failed",
+      message: parsed.message ?? "カタログ検索に失敗しました。",
+    });
+  }
+
+  // Python 側は値がないとき null を返す。undefined に均しておく。
+  return parsed.tracks.map((track) => ({
+    ...track,
+    album: track.album ?? undefined,
+    durationMs: track.durationMs ?? undefined,
+    artworkUrl: track.artworkUrl ?? undefined,
+  }));
+}
+
+/** カタログが使えないときの代替。動画としての検索。 */
+async function videoSearch(query: string, limit: number): Promise<Track[]> {
+  const stdout = await run(RESOLVER_BIN, [
     `ytsearch${limit}:${query}`,
     "--dump-json",
     "--flat-playlist",
@@ -141,7 +189,7 @@ export async function search(query: string, limit = 20): Promise<Track[]> {
  * 供給元から見れば「その PC の持ち主が普通に取得している」ままでいられる。
  */
 export async function resolveStreamUrl(sourceId: string): Promise<string> {
-  const stdout = await run([
+  const stdout = await run(RESOLVER_BIN, [
     "--format",
     "bestaudio[ext=m4a]/bestaudio",
     "--get-url",
@@ -156,6 +204,7 @@ export async function resolveStreamUrl(sourceId: string): Promise<string> {
 /** オフライン用にファイルとして落とす。 */
 export async function downloadToFile(sourceId: string, outputPath: string): Promise<void> {
   await run(
+    RESOLVER_BIN,
     [
       "--format",
       "bestaudio[ext=m4a]/bestaudio",

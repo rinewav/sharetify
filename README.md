@@ -21,11 +21,11 @@ PC ではデスクトップアプリ、スマートフォンでは PWA として
 
 - 検索 → 曲を選択 → 再生開始、再生位置が進む
 - 長さの取得、シーク、次へ / 前へ
-- MediaSession に曲名と再生状態が入る（ロック画面表示の前提）
+- ジャケット表示（node 経由で中継）、ロック画面にも反映
 - Tailscale の HTTPS 経由で、画面・API・音声すべて到達
+- **iPhone 実機で、画面ロック中の再生が成立することを確認済み（2026-07-27）**
 
-**iPhone 実機での確認はこれから。** 手順は [docs/ios-testing.md](docs/ios-testing.md)。
-ここで画面ロック中の再生が成立するかが、この構成を続けられるかの分かれ目になる。
+この構成で進められることが実機で裏取りできた。最大の未検証事項は解消。
 
 ![ホーム](docs/screenshots/home.png)
 ![プレイリスト](docs/screenshots/playlist.png)
@@ -125,7 +125,16 @@ tailscale serve --bg --https=8443 http://127.0.0.1:5273
 
 - Node.js 22 以上
 - pnpm
-- ストリーム解決用の CLI（`MUSICSHARE_RESOLVER` 環境変数でパスを指定可能。既定は PATH 上の `yt-dlp`）
+- ストリーム解決用の CLI（`MUSICSHARE_RESOLVER` で変更可。既定は PATH 上の `yt-dlp`）
+- Python 3 と `ytmusicapi`（`MUSICSHARE_PYTHON` で変更可。既定は `python3`）
+
+```bash
+pip install ytmusicapi
+```
+
+`ytmusicapi` は楽曲カタログの検索に使う。無くても動くが、動画としての検索に落ちる。
+その場合、末尾に無音が続く素材や数時間のミックスが上位に来るうえ、
+曲名とアーティストが分離されずジャケットも出ない。**入れておくこと。**
 
 ---
 

@@ -1,6 +1,6 @@
 import type { Track } from "@musicshare/shared";
 import { attachBackend, usePlayer } from "./player-store.js";
-import { streamUrl } from "./node-client.js";
+import { artworkUrl, streamUrl } from "./node-client.js";
 
 /**
  * 実際の再生を担う層。
@@ -226,11 +226,20 @@ class AudioEngine {
     const player = usePlayer.getState();
     const track = player.current();
 
+    const artwork = artworkUrl(track?.artworkUrl);
+
     navigator.mediaSession.metadata = track
       ? new MediaMetadata({
           title: track.title,
           artist: track.artist,
           album: track.album ?? "",
+          // ロック画面に出るジャケット。複数サイズを並べておくと OS 側が選べる。
+          artwork: artwork
+            ? [
+                { src: artwork, sizes: "256x256", type: "image/jpeg" },
+                { src: artwork, sizes: "512x512", type: "image/jpeg" },
+              ]
+            : [],
         })
       : null;
 

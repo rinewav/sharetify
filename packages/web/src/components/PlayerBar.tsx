@@ -38,7 +38,12 @@ export function PlayerBar({ onToggleSessionPanel, sessionPanelOpen }: Props) {
       <div className="flex items-center gap-3 px-3 py-2 md:hidden">
         {track ? (
           <>
-            <Artwork seed={track.id} label={track.title} className="size-11" />
+            <Artwork
+              seed={track.id}
+              label={track.title}
+              src={track.artworkUrl}
+              className="size-11"
+            />
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-medium">{track.title}</div>
               <div className="truncate text-xs text-ink-muted">{track.artist}</div>
@@ -88,7 +93,12 @@ export function PlayerBar({ onToggleSessionPanel, sessionPanelOpen }: Props) {
         <div className="flex w-[30%] min-w-0 items-center gap-3">
           {track ? (
             <>
-              <Artwork seed={track.id} label={track.title} className="size-14" />
+              <Artwork
+                seed={track.id}
+                label={track.title}
+                src={track.artworkUrl}
+                className="size-14"
+              />
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium">{track.title}</div>
                 <div className="truncate text-xs text-ink-muted">{track.artist}</div>

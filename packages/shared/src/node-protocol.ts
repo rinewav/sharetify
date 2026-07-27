@@ -56,6 +56,8 @@ export const NODE_ROUTES = {
   search: "/api/search",
   resolve: "/api/resolve",
   stream: "/api/stream",
+  /** ジャケット画像の中継。クライアントを外部へ直接アクセスさせないため。 */
+  artwork: "/api/artwork",
   cache: "/api/cache",
   cacheStatus: "/api/cache/status",
 } as const;
