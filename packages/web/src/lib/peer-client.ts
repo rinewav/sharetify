@@ -7,6 +7,7 @@ import {
   type PeerControl,
   type PeerRequest,
 } from "@sharetify/shared";
+import { hubSocketUrl } from "./hub-base.js";
 
 /**
  * 合言葉で自分の PC につなぐ側。
