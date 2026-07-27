@@ -1,8 +1,10 @@
 import type {
+  CacheStatusResponse,
+  CollectionKind,
+  CollectionResponse,
   NodeHealth,
   ResolveResponse,
   SearchResponse,
-  CacheStatusResponse,
 } from "@musicshare/shared";
 import { peerClient } from "./peer-client.js";
 
@@ -56,6 +58,12 @@ export function nodeHealth(signal?: AbortSignal): Promise<NodeHealth> {
 export function nodeSearch(query: string, limit = 20, signal?: AbortSignal) {
   const params = new URLSearchParams({ q: query, limit: String(limit) });
   return getJson<SearchResponse>(`/api/search?${params}`, signal);
+}
+
+/** アルバム・プレイリスト・アーティストを開く。 */
+export function nodeCollection(kind: CollectionKind, id: string, signal?: AbortSignal) {
+  const params = new URLSearchParams({ kind, id });
+  return getJson<CollectionResponse>(`/api/collection?${params}`, signal);
 }
 
 export function nodeResolve(trackId: string, signal?: AbortSignal) {

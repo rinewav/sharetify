@@ -22,7 +22,13 @@ import {
   listEntries,
 } from "./cache.js";
 import { PeerHost } from "./peer.js";
-import { isResolverReady, resolveStreamUrl, ResolverFailure, search } from "./resolver.js";
+import {
+  fetchCollection,
+  isResolverReady,
+  resolveStreamUrl,
+  ResolverFailure,
+  search,
+} from "./resolver.js";
 
 /**
  * node サーバー — 各ユーザーの PC の中だけで動く。
@@ -58,8 +64,24 @@ export function createNodeApp(): Hono {
 
     const limit = Number(c.req.query("limit") ?? 20);
     try {
-      const response: SearchResponse = { tracks: await search(query, limit) };
+      const response: SearchResponse = await search(query, limit);
       return c.json(response);
+    } catch (error) {
+      return c.json({ error: describe(error) }, 502);
+    }
+  });
+
+  /** アルバム・プレイリスト・アーティストを開く。 */
+  app.get(NODE_ROUTES.collection, async (c) => {
+    const kind = c.req.query("kind");
+    const id = c.req.query("id")?.trim();
+    if (kind !== "album" && kind !== "playlist" && kind !== "artist") {
+      return c.json({ error: "kind must be album, playlist or artist" }, 400);
+    }
+    if (!id) return c.json({ error: "id is required" }, 400);
+
+    try {
+      return c.json(await fetchCollection(kind, id));
     } catch (error) {
       return c.json({ error: describe(error) }, 502);
     }

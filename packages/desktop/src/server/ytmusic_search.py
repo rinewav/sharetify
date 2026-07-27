@@ -4,6 +4,10 @@
 1 時間のミックスばかりが上位に来てしまう。楽曲として登録されているものを
 引きたいので、こちらを経由する。
 
+曲だけでなくアーティスト・アルバム・プレイリストも返す。
+種別を指定せずに一度で引くと見出しが項目に混ざって質が落ちるので、
+種別ごとに引いたうえでまとめる。待ち時間が伸びないよう並べて実行する。
+
 標準出力に JSON を 1 行返す。呼び出し側はそれだけを読む。
 """
 
@@ -13,6 +17,7 @@ import json
 import re
 import sys
 import warnings
+from concurrent.futures import ThreadPoolExecutor
 
 warnings.filterwarnings("ignore")
 
@@ -22,7 +27,7 @@ _SIZE_IN_URL = re.compile(r"=w\d+-h\d+")
 _ARTWORK_SIZE = 544
 
 
-def pick_thumbnail(thumbnails: list[dict]) -> str | None:
+def pick_thumbnail(thumbnails: list[dict] | None) -> str | None:
     """一番大きいものを選ぶ。並び順は保証されていないので幅で判断する。"""
     if not thumbnails:
         return None
@@ -33,25 +38,81 @@ def pick_thumbnail(thumbnails: list[dict]) -> str | None:
     return _SIZE_IN_URL.sub(f"=w{_ARTWORK_SIZE}-h{_ARTWORK_SIZE}", url)
 
 
+def join_artists(entry: dict) -> str:
+    names = [a.get("name") for a in entry.get("artists") or [] if a.get("name")]
+    return "、".join(names) if names else "不明"
+
+
 def to_track(entry: dict) -> dict | None:
     video_id = entry.get("videoId")
     title = entry.get("title")
     if not video_id or not title:
         return None
 
-    artists = [a.get("name") for a in entry.get("artists") or [] if a.get("name")]
-    album = (entry.get("album") or {}).get("name")
     seconds = entry.get("duration_seconds")
-
     return {
         "id": video_id,
         "sourceKind": "remote",
         "sourceId": video_id,
         "title": title,
-        "artist": "、".join(artists) if artists else "不明",
-        "album": album,
+        "artist": join_artists(entry),
+        "album": (entry.get("album") or {}).get("name"),
         "durationMs": int(seconds * 1000) if seconds else None,
-        "artworkUrl": pick_thumbnail(entry.get("thumbnails") or []),
+        "artworkUrl": pick_thumbnail(entry.get("thumbnails")),
+    }
+
+
+def to_album(entry: dict) -> dict | None:
+    browse_id = entry.get("browseId")
+    title = entry.get("title")
+    if not browse_id or not title:
+        return None
+
+    return {
+        "id": browse_id,
+        "playlistId": entry.get("playlistId"),
+        "title": title,
+        "artist": join_artists(entry),
+        "year": entry.get("year"),
+        # アルバム / シングル / EP の区別。表示の並べ分けに使う。
+        "kind": entry.get("type"),
+        "artworkUrl": pick_thumbnail(entry.get("thumbnails")),
+    }
+
+
+def to_artist(entry: dict) -> dict | None:
+    browse_id = entry.get("browseId")
+    # アーティストの表示名は artists 側に入っていることがある。
+    name = entry.get("artist") or entry.get("title") or join_artists(entry)
+    if not browse_id or not name or name == "不明":
+        return None
+
+    return {
+        "id": browse_id,
+        "name": name,
+        "subscribers": entry.get("subscribers"),
+        "artworkUrl": pick_thumbnail(entry.get("thumbnails")),
+    }
+
+
+def to_playlist(entry: dict) -> dict | None:
+    browse_id = entry.get("browseId") or entry.get("playlistId")
+    title = entry.get("title")
+    if not browse_id or not title:
+        return None
+
+    count = entry.get("itemCount")
+    try:
+        count = int(str(count).replace(",", "")) if count is not None else None
+    except (TypeError, ValueError):
+        count = None
+
+    return {
+        "id": browse_id,
+        "title": title,
+        "author": entry.get("author"),
+        "itemCount": count,
+        "artworkUrl": pick_thumbnail(entry.get("thumbnails")),
     }
 
 
@@ -60,7 +121,7 @@ def main() -> int:
     limit = int(sys.argv[2]) if len(sys.argv) > 2 else 20
 
     if not query.strip():
-        json.dump({"tracks": []}, sys.stdout, ensure_ascii=False)
+        json.dump({"tracks": [], "albums": [], "artists": [], "playlists": []}, sys.stdout)
         return 0
 
     try:
@@ -75,8 +136,7 @@ def main() -> int:
 
     try:
         client = YTMusic()
-        results = client.search(query, filter="songs", limit=limit)
-    except Exception as error:  # 通信断・仕様変更などは呼び出し側で拾わせる
+    except Exception as error:
         json.dump(
             {"error": "failed", "message": str(error)[:200]},
             sys.stdout,
@@ -84,8 +144,45 @@ def main() -> int:
         )
         return 3
 
-    tracks = [t for t in (to_track(entry) for entry in results) if t is not None]
-    json.dump({"tracks": tracks[:limit]}, sys.stdout, ensure_ascii=False)
+    # 種別ごとの問い合わせは互いに独立しているので、待ち時間を重ねない。
+    plan = [
+        ("songs", limit, to_track, "tracks"),
+        ("albums", 8, to_album, "albums"),
+        ("artists", 6, to_artist, "artists"),
+        ("community_playlists", 8, to_playlist, "playlists"),
+    ]
+
+    def run(spec):
+        kind, count, mapper, key = spec
+        try:
+            entries = client.search(query, filter=kind, limit=count)
+        except Exception:
+            # 一部が取れなくても、取れたものだけ見せたほうが役に立つ。
+            return key, []
+        mapped = [m for m in (mapper(e) for e in entries) if m is not None]
+        return key, mapped[:count]
+
+    with ThreadPoolExecutor(max_workers=len(plan)) as pool:
+        results = dict(pool.map(run, plan))
+
+    if not any(results.values()):
+        json.dump(
+            {"error": "failed", "message": "検索結果を取得できませんでした。"},
+            sys.stdout,
+            ensure_ascii=False,
+        )
+        return 3
+
+    json.dump(
+        {
+            "tracks": results.get("tracks", []),
+            "albums": results.get("albums", []),
+            "artists": results.get("artists", []),
+            "playlists": results.get("playlists", []),
+        },
+        sys.stdout,
+        ensure_ascii=False,
+    )
     return 0
 
 

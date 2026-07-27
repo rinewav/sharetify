@@ -5,7 +5,14 @@
  * この経路にだけ音声の実体が流れる。中央サーバーは一切関与しない。
  */
 
-import type { CacheEntry, Track } from "./domain.js";
+import type {
+  AlbumSummary,
+  ArtistSummary,
+  CacheEntry,
+  CollectionKind,
+  PlaylistSummary,
+  Track,
+} from "./domain.js";
 
 export const NODE_DEFAULT_PORT = 47821;
 
@@ -25,7 +32,26 @@ export interface SearchRequest {
   limit?: number;
 }
 
+/**
+ * 検索結果。
+ *
+ * 曲だけを返すと、アルバムやアーティストで探している人が行き止まりになる。
+ * 種別ごとに分けて返し、表示側でまとまりごとに並べる。
+ */
 export interface SearchResponse {
+  tracks: Track[];
+  albums: AlbumSummary[];
+  artists: ArtistSummary[];
+  playlists: PlaylistSummary[];
+}
+
+/** アルバムやプレイリストを開いたときの中身。 */
+export interface CollectionResponse {
+  kind: CollectionKind;
+  id: string;
+  title: string;
+  subtitle?: string;
+  artworkUrl?: string;
   tracks: Track[];
 }
 
@@ -54,6 +80,8 @@ export interface CacheStatusResponse {
 export const NODE_ROUTES = {
   health: "/api/health",
   search: "/api/search",
+  /** アルバム・プレイリスト・アーティストの中身。 */
+  collection: "/api/collection",
   resolve: "/api/resolve",
   stream: "/api/stream",
   /** ジャケット画像の中継。クライアントを外部へ直接アクセスさせないため。 */

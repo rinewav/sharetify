@@ -38,6 +38,42 @@ export interface Artist {
   imageUrl?: string;
 }
 
+/* ------------------------------------------------------------------ *
+ * 検索で出てくるまとまり
+ *
+ * 曲そのものではなく「開くと曲が入っているもの」。
+ * 中身は開いたときに取りに行くので、ここでは見出しだけ持つ。
+ * ------------------------------------------------------------------ */
+
+/** アルバム・シングル・EP。`kind` で区別する。 */
+export interface AlbumSummary {
+  id: string;
+  playlistId?: string;
+  title: string;
+  artist: string;
+  year?: string;
+  kind?: string;
+  artworkUrl?: string;
+}
+
+export interface ArtistSummary {
+  id: string;
+  name: string;
+  subscribers?: string;
+  artworkUrl?: string;
+}
+
+export interface PlaylistSummary {
+  id: string;
+  title: string;
+  author?: string;
+  itemCount?: number;
+  artworkUrl?: string;
+}
+
+/** 開いて曲を取り出せるもの。 */
+export type CollectionKind = "album" | "playlist" | "artist";
+
 export interface Playlist {
   id: string;
   name: string;

@@ -1,18 +1,24 @@
 import { useEffect, useState } from "react";
 import { Download, Loader2, Search } from "lucide-react";
-import type { CacheState, NodeHealth, Track } from "@musicshare/shared";
+import type { CacheState, CollectionKind, NodeHealth, SearchResponse } from "@musicshare/shared";
+import { ResultCard } from "../components/ResultCard.js";
 import { TrackList } from "../components/TrackList.js";
-import { nodeCache, nodeSearch } from "../lib/node-client.js";
+import { nodeCache, nodeCollection, nodeSearch } from "../lib/node-client.js";
 import { usePlayer } from "../lib/player-store.js";
+import type { Route } from "../lib/routes.js";
 
 interface Props {
   cacheStates: Record<string, CacheState>;
   health: NodeHealth | null;
+  onNavigate: (route: Route) => void;
 }
 
-export function SearchView({ cacheStates, health }: Props) {
+const EMPTY: SearchResponse = { tracks: [], albums: [], artists: [], playlists: [] };
+
+/** 曲だけでなく、アーティスト・アルバム・プレイリストも並べる。 */
+export function SearchView({ cacheStates, health, onNavigate }: Props) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Track[]>([]);
+  const [results, setResults] = useState<SearchResponse>(EMPTY);
   const [error, setError] = useState<string | null>(null);
   /**
    * 「入力済みだが、まだ答えが返っていない」状態を 1 つの値で持つ。
@@ -28,28 +34,27 @@ export function SearchView({ cacheStates, health }: Props) {
   useEffect(() => {
     const term = query.trim();
     if (!term) {
-      setResults([]);
+      setResults(EMPTY);
       setError(null);
       setPhase("idle");
       return;
     }
     if (!online) return;
 
-    // 入力された時点で待ちに入る。ここから結果が確定するまで空表示は出さない。
     setPhase("pending");
     setError(null);
 
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
-        const { tracks } = await nodeSearch(term, 20, controller.signal);
+        const found = await nodeSearch(term, 20, controller.signal);
         if (controller.signal.aborted) return;
-        setResults(tracks);
+        setResults({ ...EMPTY, ...found });
         setPhase("done");
       } catch (cause) {
         if (controller.signal.aborted) return;
         setError(cause instanceof Error ? cause.message : "検索に失敗しました。");
-        setResults([]);
+        setResults(EMPTY);
         setPhase("done");
       }
     }, 450);
@@ -60,7 +65,27 @@ export function SearchView({ cacheStates, health }: Props) {
     };
   }, [query, online]);
 
-  const loading = phase === "pending";
+  const open = (kind: CollectionKind, id: string, title: string) =>
+    onNavigate({ name: "collection", kind, id, title });
+
+  /** 札の再生ボタン。開かずにその場でキューへ入れる。 */
+  const playCollection = async (kind: CollectionKind, id: string) => {
+    try {
+      const collection = await nodeCollection(kind, id);
+      if (collection.tracks.length > 0) playQueue(collection.tracks, 0);
+    } catch {
+      // 開いて確かめてもらえばよいので、ここでは黙って諦める。
+    }
+  };
+
+  const { tracks, albums, artists, playlists } = results;
+  const nothingFound =
+    phase === "done" &&
+    !error &&
+    tracks.length === 0 &&
+    albums.length === 0 &&
+    artists.length === 0 &&
+    playlists.length === 0;
 
   return (
     <div className="px-4 pt-20 pb-8 sm:px-6">
@@ -74,7 +99,7 @@ export function SearchView({ cacheStates, health }: Props) {
           autoCorrect="off"
           className="w-full rounded-full bg-surface-3 py-3 pr-10 pl-10 text-base outline-none placeholder:text-ink-faint focus:ring-2 focus:ring-ink/20 sm:text-sm"
         />
-        {loading && (
+        {phase === "pending" && (
           <Loader2 className="absolute top-1/2 right-3 size-4 -translate-y-1/2 animate-spin text-ink-faint" />
         )}
       </div>
@@ -91,19 +116,40 @@ export function SearchView({ cacheStates, health }: Props) {
         </div>
       )}
 
-      {phase === "idle" ? (
+      {phase === "idle" && (
         <div className="mt-10 text-sm text-ink-faint">聴きたいものを入力してください。</div>
-      ) : phase === "done" && results.length === 0 && !error ? (
+      )}
+
+      {nothingFound && (
         <div className="mt-10 text-sm text-ink-faint">
           「{query}」に一致するものは見つかりませんでした。
         </div>
-      ) : results.length > 0 ? (
-        <div className="mt-8">
+      )}
+
+      {artists.length > 0 && (
+        <Section title="アーティスト">
+          {artists.map((artist) => (
+            <ResultCard
+              key={artist.id}
+              seed={artist.id}
+              title={artist.name}
+              subtitle={artist.subscribers ? `登録者 ${artist.subscribers}` : "アーティスト"}
+              artworkUrl={artist.artworkUrl}
+              round
+              onOpen={() => open("artist", artist.id, artist.name)}
+              onPlay={() => void playCollection("artist", artist.id)}
+            />
+          ))}
+        </Section>
+      )}
+
+      {tracks.length > 0 && (
+        <section className="mt-8">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-bold tracking-tight">曲</h2>
+            <h2 className="text-xl font-bold tracking-tight sm:text-2xl">曲</h2>
             <button
               type="button"
-              onClick={() => void nodeCache(results.slice(0, 10).map((t) => t.id))}
+              onClick={() => void nodeCache(tracks.slice(0, 10).map((t) => t.id))}
               className="flex items-center gap-1.5 rounded-full bg-surface-3 px-3 py-1.5 text-xs text-ink-muted transition hover:text-ink"
               title="上位10件をオフライン用に保存"
             >
@@ -112,13 +158,60 @@ export function SearchView({ cacheStates, health }: Props) {
             </button>
           </div>
           <TrackList
-            tracks={results}
+            tracks={tracks}
             cacheStates={cacheStates}
-            onPlay={(index) => playQueue(results, index)}
+            onPlay={(index) => playQueue(tracks, index)}
             showAlbum={false}
           />
-        </div>
-      ) : null}
+        </section>
+      )}
+
+      {albums.length > 0 && (
+        <Section title="アルバム・シングル">
+          {albums.map((album) => (
+            <ResultCard
+              key={album.id}
+              seed={album.id}
+              title={album.title}
+              subtitle={[album.kind, album.year, album.artist].filter(Boolean).join(" · ")}
+              artworkUrl={album.artworkUrl}
+              onOpen={() => open("album", album.id, album.title)}
+              onPlay={() => void playCollection("album", album.id)}
+            />
+          ))}
+        </Section>
+      )}
+
+      {playlists.length > 0 && (
+        <Section title="プレイリスト">
+          {playlists.map((playlist) => (
+            <ResultCard
+              key={playlist.id}
+              seed={playlist.id}
+              title={playlist.title}
+              subtitle={
+                [playlist.author, playlist.itemCount ? `${playlist.itemCount} 曲` : null]
+                  .filter(Boolean)
+                  .join(" · ") || "プレイリスト"
+              }
+              artworkUrl={playlist.artworkUrl}
+              onOpen={() => open("playlist", playlist.id, playlist.title)}
+              onPlay={() => void playCollection("playlist", playlist.id)}
+            />
+          ))}
+        </Section>
+      )}
     </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="mt-8">
+      <h2 className="mb-4 text-xl font-bold tracking-tight sm:text-2xl">{title}</h2>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5 xl:grid-cols-6">
+        {children}
+      </div>
+    </section>
   );
 }

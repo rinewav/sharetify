@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx src/server/standalone.ts",
     "dev:electron": "pnpm build && electron dist/main.js",
-    "build": "tsc && cp src/server/*.py dist/server/",
+    "build": "tsc && cp src/server/*.py dist/server/ 2>/dev/null || true",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

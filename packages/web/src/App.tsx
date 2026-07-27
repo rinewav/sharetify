@@ -13,6 +13,7 @@ import { nodeCacheStatus, nodeHealth } from "./lib/node-client.js";
 import { usePlayer } from "./lib/player-store.js";
 import { useSession } from "./lib/session-store.js";
 import type { Route } from "./lib/routes.js";
+import { CollectionView } from "./views/CollectionView.js";
 import { GroupsView } from "./views/GroupsView.js";
 import { HomeView } from "./views/HomeView.js";
 import { PlaylistView } from "./views/PlaylistView.js";
@@ -70,7 +71,16 @@ export default function App() {
       case "home":
         return <HomeView playlists={mockPlaylists} onNavigate={navigate} />;
       case "search":
-        return <SearchView cacheStates={cacheStates} health={health} />;
+        return <SearchView cacheStates={cacheStates} health={health} onNavigate={navigate} />;
+      case "collection":
+        return (
+          <CollectionView
+            kind={route.kind}
+            id={route.id}
+            fallbackTitle={route.title}
+            cacheStates={cacheStates}
+          />
+        );
       case "groups":
         return (
           <GroupsView groups={mockGroups} playlists={mockPlaylists} onNavigate={navigate} />

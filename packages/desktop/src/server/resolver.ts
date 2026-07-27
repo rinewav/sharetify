@@ -1,7 +1,12 @@
 import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Track } from "@musicshare/shared";
+import type {
+  CollectionKind,
+  CollectionResponse,
+  SearchResponse,
+  Track,
+} from "@musicshare/shared";
 
 /**
  * ストリーム解決。
@@ -16,8 +21,11 @@ import type { Track } from "@musicshare/shared";
 const RESOLVER_BIN = process.env.MUSICSHARE_RESOLVER ?? "yt-dlp";
 const PYTHON_BIN = process.env.MUSICSHARE_PYTHON ?? "python3";
 
-/** カタログ検索スクリプトの場所。ビルド後もソース側を参照する。 */
-const CATALOG_SCRIPT = join(dirname(fileURLToPath(import.meta.url)), "ytmusic_search.py");
+const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
+/** カタログ検索スクリプトの場所。 */
+const CATALOG_SCRIPT = join(SCRIPT_DIR, "ytmusic_search.py");
+/** アルバムなどの中身を取り出すスクリプト。 */
+const COLLECTION_SCRIPT = join(SCRIPT_DIR, "ytmusic_collection.py");
 
 export interface ResolverError {
   kind: "unavailable" | "failed";
@@ -108,10 +116,25 @@ interface RawSearchEntry {
   duration?: number;
 }
 
-interface CatalogResult {
-  tracks?: (Track & { durationMs?: number | null; album?: string | null })[];
+interface CatalogResult extends Partial<SearchResponse> {
   error?: string;
   message?: string;
+}
+
+/** Python 側は値がないとき null を返す。undefined に均しておく。 */
+function normalizeTrack(track: Track): Track {
+  return {
+    ...track,
+    album: track.album ?? undefined,
+    durationMs: track.durationMs ?? undefined,
+    artworkUrl: track.artworkUrl ?? undefined,
+  };
+}
+
+function stripNulls<T extends object>(value: T): T {
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [key, item ?? undefined]),
+  ) as T;
 }
 
 /**
@@ -121,15 +144,16 @@ interface CatalogResult {
  * 数時間のミックスばかりが上位に来てしまい、曲名とアーティストも分離できない。
  * カタログ側が使えないときだけ、動画検索に落とす。
  */
-export async function search(query: string, limit = 20): Promise<Track[]> {
+export async function search(query: string, limit = 20): Promise<SearchResponse> {
   try {
     return await catalogSearch(query, limit);
   } catch {
-    return await videoSearch(query, limit);
+    // 代替経路では曲しか組み立てられない。まとまりは空で返す。
+    return { tracks: await videoSearch(query, limit), albums: [], artists: [], playlists: [] };
   }
 }
 
-async function catalogSearch(query: string, limit: number): Promise<Track[]> {
+async function catalogSearch(query: string, limit: number): Promise<SearchResponse> {
   const stdout = await run(PYTHON_BIN, [CATALOG_SCRIPT, query, String(limit)], 45_000);
 
   const parsed = JSON.parse(stdout) as CatalogResult;
@@ -140,13 +164,40 @@ async function catalogSearch(query: string, limit: number): Promise<Track[]> {
     });
   }
 
-  // Python 側は値がないとき null を返す。undefined に均しておく。
-  return parsed.tracks.map((track) => ({
-    ...track,
-    album: track.album ?? undefined,
-    durationMs: track.durationMs ?? undefined,
-    artworkUrl: track.artworkUrl ?? undefined,
-  }));
+  return {
+    tracks: parsed.tracks.map(normalizeTrack),
+    albums: (parsed.albums ?? []).map(stripNulls),
+    artists: (parsed.artists ?? []).map(stripNulls),
+    playlists: (parsed.playlists ?? []).map(stripNulls),
+  };
+}
+
+/** アルバム・プレイリスト・アーティストを開いて、入っている曲を取り出す。 */
+export async function fetchCollection(
+  kind: CollectionKind,
+  id: string,
+): Promise<CollectionResponse> {
+  const stdout = await run(PYTHON_BIN, [COLLECTION_SCRIPT, kind, id], 60_000);
+  const parsed = JSON.parse(stdout) as Partial<CollectionResponse> & {
+    error?: string;
+    message?: string;
+  };
+
+  if (parsed.error || !parsed.tracks) {
+    throw new ResolverFailure({
+      kind: parsed.error === "unavailable" ? "unavailable" : "failed",
+      message: parsed.message ?? "中身を取得できませんでした。",
+    });
+  }
+
+  return {
+    kind,
+    id,
+    title: parsed.title ?? "",
+    subtitle: parsed.subtitle ?? undefined,
+    artworkUrl: parsed.artworkUrl ?? undefined,
+    tracks: parsed.tracks.map(normalizeTrack),
+  };
 }
 
 /** カタログが使えないときの代替。動画としての検索。 */
