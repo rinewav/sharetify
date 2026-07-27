@@ -459,8 +459,18 @@ export async function startNodeServer(port = NODE_DEFAULT_PORT, webRoot?: string
   // 画面を同梱しているときだけ配る。開発中は別の配信役が受け持つ。
   if (webRoot) serveWebApp(app, webRoot);
 
-  const server = serve({ fetch: app.fetch, port }, (info) => {
-    console.log(`[node] listening on http://localhost:${info.port}`);
+  /*
+   * 待ち受けに失敗したことを、呼んだ側へ返す。
+   *
+   * 立ち上げの失敗は後から知らされるので、そのままでは掴めない。
+   * 掴めないと、誰も受け止めないまま入れ物ごと落ちる。
+   */
+  const server = await new Promise<ReturnType<typeof serve>>((resolve, reject) => {
+    const created = serve({ fetch: app.fetch, port }, (info) => {
+      console.log(`[node] listening on http://localhost:${info.port}`);
+      resolve(created);
+    });
+    created.on("error", reject);
   });
 
   /*

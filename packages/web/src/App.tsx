@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ChevronLeft, ChevronRight, Wifi, WifiOff } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import type { CacheState, CollectionKind, NodeHealth, Track } from "@sharetify/shared";
 import { AddToPlaylistSheet } from "./components/AddToPlaylistSheet.js";
+import { ConnectionIndicator } from "./components/ConnectionIndicator.js";
+import { HostPanel } from "./components/HostPanel.js";
 import { LayoutProbe, layoutProbeEnabled } from "./components/LayoutProbe.js";
 import { MobileNav } from "./components/MobileNav.js";
 import { NowPlayingView } from "./components/NowPlayingView.js";
@@ -10,6 +12,7 @@ import { PlayerBar } from "./components/PlayerBar.js";
 import { QueuePanel } from "./components/QueuePanel.js";
 import { SessionPanel } from "./components/SessionPanel.js";
 import { SettingsSheet } from "./components/SettingsSheet.js";
+import { Setup, setupDone } from "./components/Setup.js";
 import { SignInSheet } from "./components/SignInSheet.js";
 import { Sidebar } from "./components/Sidebar.js";
 import { audioEngine } from "./lib/audio-engine.js";
@@ -17,6 +20,7 @@ import { storedToken } from "./lib/hub-client.js";
 import { useLibrary } from "./lib/library-store.js";
 import { nodeCacheStatus, nodeHealth } from "./lib/node-client.js";
 import { listCached } from "./lib/offline-cache.js";
+import { isDesktopApp } from "./lib/platform.js";
 import { usePlayer } from "./lib/player-store.js";
 import { useSession } from "./lib/session-store.js";
 import type { Route } from "./lib/routes.js";
@@ -39,6 +43,9 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [addingTrack, setAddingTrack] = useState<Track | null>(null);
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
+  const [hostPanelOpen, setHostPanelOpen] = useState(false);
+  // 最初に一度だけ通す道。何がどこで動くのかを知らないまま使い始めないように。
+  const [setupOpen, setSetupOpen] = useState(() => !setupDone());
 
   const inSession = useSession((s) => s.inSession);
   const playerError = usePlayer((s) => s.error);
@@ -57,9 +64,12 @@ export default function App() {
   useAudioEngine();
   useLibrarySync();
 
-  // まだ誰でもないなら名前を決めてもらう。共有には名前が要る。
+  /*
+   * まだ誰でもないなら名前を決めてもらう。共有には名前が要る。
+   * ただし最初の道の中でも決められるので、そちらを通っている間は出さない。
+   */
   useEffect(() => {
-    if (!storedToken()) setSignInOpen(true);
+    if (!storedToken() && setupDone()) setSignInOpen(true);
   }, []);
 
   // 場に入った時点で一度だけ開く。以降は閉じたままにできる。
@@ -204,23 +214,14 @@ export default function App() {
             </div>
 
             <div className="app-no-drag flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setPairingOpen(true)}
-                className="flex items-center gap-1.5 rounded-full bg-base/60 px-3 py-1.5 text-xs text-ink-muted transition hover:text-ink"
-                title={
-                  nodeOnline
-                    ? "自分の PC に接続しています"
-                    : "自分の PC に接続できていません。タップしてつなぐ"
-                }
-              >
-                {nodeOnline ? (
-                  <Wifi className="size-3.5 text-accent" />
-                ) : (
-                  <WifiOff className="size-3.5 text-ink-faint" />
-                )}
-                <span className="hidden sm:inline">{nodeOnline ? "自分の PC" : "つなぐ"}</span>
-              </button>
+              {/*
+                繋がり具合。配って回す入れ物の中では自分がその PC なので、
+                つなぐ先ではなく、ここで動いていることを見せる。
+              */}
+              <ConnectionIndicator
+                health={health}
+                onClick={() => (isDesktopApp() ? setHostPanelOpen(true) : setPairingOpen(true))}
+              />
               <button
                 type="button"
                 onClick={() => (user ? setSettingsOpen(true) : setSignInOpen(true))}
@@ -297,6 +298,7 @@ export default function App() {
           }}
         />
       )}
+      {hostPanelOpen && <HostPanel onClose={() => setHostPanelOpen(false)} />}
       {pairingOpen && <PairingSheet onClose={() => setPairingOpen(false)} />}
       {signInOpen && (
         <SignInSheet
@@ -313,6 +315,18 @@ export default function App() {
       )}
       {addingTrack && (
         <AddToPlaylistSheet track={addingTrack} onClose={() => setAddingTrack(null)} />
+      )}
+      {/* 最初の道。いちばん手前に出して、他の窓と重ならないようにする。 */}
+      {setupOpen && (
+        <Setup
+          health={health}
+          onClose={() => {
+            setSetupOpen(false);
+            // 道の中で名前を決めなかった人には、あらためて訊く。
+            if (!storedToken()) setSignInOpen(true);
+          }}
+          onOpenPairing={() => setPairingOpen(true)}
+        />
       )}
       {layoutProbeEnabled() && <LayoutProbe />}
     </div>

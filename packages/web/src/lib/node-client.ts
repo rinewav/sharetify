@@ -163,6 +163,22 @@ export function nodeLyrics(track: Track, signal?: AbortSignal): Promise<LyricsRe
   return getJson<LyricsResult>(`/api/lyrics?${params}`, signal);
 }
 
+/* ------------------------------ 迎える側 ------------------------------ */
+
+export interface PairingStatus {
+  /** スマホに渡す合言葉。まだ決まっていなければ null。 */
+  code: string | null;
+  /** いま繋がっている端末の数。 */
+  guests: number;
+  /** 迎え入れる用意ができているか。 */
+  enabled: boolean;
+}
+
+/** この PC が迎える側として、いまどうなっているか。 */
+export function nodePairingStatus(signal?: AbortSignal): Promise<PairingStatus> {
+  return getJson<PairingStatus>("/api/pairing", signal);
+}
+
 /* ------------------------------ 聴取記録 ------------------------------ */
 
 export interface LastfmStatus {
