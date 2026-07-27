@@ -56,6 +56,47 @@ function setState(trackId: string, state: CacheState, patch: Partial<CacheEntry>
   });
 }
 
+/** 取得中のもの。同じ曲を二重に取りに行かないための見張り。 */
+const inflight = new Map<string, Promise<string>>();
+
+/**
+ * 再生できる状態にして、ファイルの場所を返す。
+ *
+ * 供給元の URL をそのまま読みにいくと、極端に絞られて実用にならない
+ * (実測で 30KB/s 前後)。取得用のコンポーネントに任せると同じ曲が数秒で揃うので、
+ * 一度手元に落としきってから配る。
+ *
+ * 落としたものはそのまま残す。二度目からは即座に鳴り、
+ * PC が落ちている間の再生にも使える。
+ */
+export function ensureCached(trackId: string): Promise<string> {
+  const path = cachePathFor(trackId);
+  if (isCached(trackId)) return Promise.resolve(path);
+
+  const existing = inflight.get(trackId);
+  if (existing) return existing;
+
+  const task = (async () => {
+    setState(trackId, "downloading");
+    try {
+      await downloadToFile(trackId, path);
+      const info = await stat(path).catch(() => null);
+      setState(trackId, "ready", { progress: 1, bytes: info?.size });
+      return path;
+    } catch (error) {
+      const message =
+        error instanceof ResolverFailure ? error.detail.message : "取得に失敗しました。";
+      setState(trackId, "failed", { error: message });
+      throw error;
+    } finally {
+      inflight.delete(trackId);
+    }
+  })();
+
+  inflight.set(trackId, task);
+  return task;
+}
+
 /**
  * まとめてダウンロードする。
  * 同時に走らせすぎると供給元に不自然な負荷をかけるので、直列で流す。
@@ -68,15 +109,7 @@ export async function enqueue(trackIds: string[]): Promise<void> {
 
   for (const trackId of trackIds) {
     if (entries.get(trackId)?.state !== "queued") continue;
-    setState(trackId, "downloading");
-    try {
-      await downloadToFile(trackId, cachePathFor(trackId));
-      const info = await stat(cachePathFor(trackId)).catch(() => null);
-      setState(trackId, "ready", { progress: 1, bytes: info?.size });
-    } catch (error) {
-      const message =
-        error instanceof ResolverFailure ? error.detail.message : "ダウンロードに失敗しました。";
-      setState(trackId, "failed", { error: message });
-    }
+    // 取得の実体は ensureCached が持つ。二重取得もそちらで防ぐ。
+    await ensureCached(trackId).catch(() => undefined);
   }
 }

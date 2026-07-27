@@ -1,5 +1,6 @@
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
+import { hostname } from "node:os";
 import { Readable } from "node:stream";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
@@ -11,7 +12,16 @@ import {
   type ResolveResponse,
   type SearchResponse,
 } from "@musicshare/shared";
-import { cachePathFor, cachedCount, enqueue, initCache, isCached, listEntries } from "./cache.js";
+import {
+  cachePathFor,
+  cachedCount,
+  ensureCached,
+  enqueue,
+  initCache,
+  isCached,
+  listEntries,
+} from "./cache.js";
+import { PeerHost } from "./peer.js";
 import { isResolverReady, resolveStreamUrl, ResolverFailure, search } from "./resolver.js";
 
 /**
@@ -85,32 +95,27 @@ export function createNodeApp(): Hono {
     }
   });
 
+  /*
+   * 音声を返す。
+   *
+   * 供給元の URL をそのまま中継してはいけない。
+   * 単発で全部読みにいくと極端に絞られ、実測で 30KB/s 前後しか出なかった。
+   * 取得用のコンポーネントに任せれば同じ曲が数秒で揃うので、
+   * 一度手元に落としきってから配る。
+   *
+   * 落としたものは残すので、二度目は即座に鳴り、
+   * PC が落ちている間の再生にも回せる。
+   */
   app.get(NODE_ROUTES.stream, async (c) => {
     const trackId = c.req.query("trackId")?.trim();
     if (!trackId) return c.json({ error: "trackId is required" }, 400);
 
-    if (isCached(trackId)) return streamFromDisk(c, trackId);
-
     try {
-      const upstream = await resolveStreamUrl(trackId);
-      const range = c.req.header("range");
-      const response = await fetch(upstream, {
-        headers: range ? { Range: range } : undefined,
-      });
-
-      if (!response.body) return c.json({ error: "配信を取得できませんでした。" }, 502);
-
-      const headers = new Headers();
-      headers.set("Content-Type", response.headers.get("content-type") ?? "audio/mp4");
-      headers.set("Accept-Ranges", "bytes");
-      for (const key of ["content-length", "content-range"]) {
-        const value = response.headers.get(key);
-        if (value) headers.set(key, value);
-      }
-      return new Response(response.body, { status: response.status, headers });
+      await ensureCached(trackId);
     } catch (error) {
       return c.json({ error: describe(error) }, 502);
     }
+    return streamFromDisk(c, trackId);
   });
 
   /*
@@ -215,7 +220,38 @@ function isAllowedArtworkHost(hostname: string): boolean {
 export async function startNodeServer(port = NODE_DEFAULT_PORT) {
   await initCache();
   const app = createNodeApp();
-  return serve({ fetch: app.fetch, port }, (info) => {
+
+  let host: PeerHost | null = null;
+
+  // 合言葉の状態を画面から見られるようにしておく。
+  app.get("/api/pairing", (c) =>
+    c.json({
+      code: host?.pairCode ?? null,
+      guests: host?.guestCount ?? 0,
+      enabled: host !== null,
+    }),
+  );
+
+  const server = serve({ fetch: app.fetch, port }, (info) => {
     console.log(`[node] listening on http://localhost:${info.port}`);
   });
+
+  /*
+   * 直結の受け口を開く。
+   *
+   * これがあるおかげで、利用者は同じネットワークに入る仕掛けを用意しなくても、
+   * 合言葉を打つだけで自分の PC を使えるようになる。
+   * 中央は引き合わせるだけで、音声はここと相手の間を直接流れる。
+   */
+  if (process.env.MUSICSHARE_PAIRING !== "off") {
+    host = new PeerHost(app, {
+      hubUrl: process.env.MUSICSHARE_HUB_URL,
+      label: hostname(),
+      onCode: (code) => console.log(`[peer] 合言葉: ${code}`),
+      onGuestCountChange: (count) => console.log(`[peer] 接続中の端末: ${count}`),
+    });
+    host.start();
+  }
+
+  return server;
 }

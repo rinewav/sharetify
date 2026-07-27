@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import {
   HUB_DEFAULT_PORT,
+  PAIR_ROUTE,
   type LoginRequest,
   type LoginResponse,
   type MeResponse,
@@ -27,6 +28,15 @@ import {
   listSessions,
   registerConnection,
 } from "./sessions.js";
+import {
+  closeGuest,
+  closeHost,
+  handleGuestMessage,
+  handleHostMessage,
+  openGuest,
+  openHost,
+  pairingStats,
+} from "./pairing.js";
 
 /**
  * 中央サーバー。
@@ -40,7 +50,7 @@ const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
 
 app.use("/api/*", cors());
 
-app.get("/api/health", (c) => c.json({ ok: true, service: "hub" }));
+app.get("/api/health", (c) => c.json({ ok: true, service: "hub", pairing: pairingStats() }));
 
 app.post("/api/auth/login", async (c) => {
   const body = await c.req.json<LoginRequest>().catch(() => null);
@@ -167,6 +177,40 @@ app.get(
       },
       onError() {
         dropConnection(connectionId);
+      },
+    };
+  }),
+);
+
+/*
+ * 引き合わせ用の口。
+ *
+ * 中央がここでするのは、PC とスマートフォンを結びつけて接続情報を渡すことだけ。
+ * 直結できたあとの通信はここを通らない。
+ * アカウントを持っていなくても繋げたいので、認証は課していない。
+ */
+app.get(
+  PAIR_ROUTE,
+  upgradeWebSocket((c) => {
+    const role = c.req.query("role") === "host" ? "host" : "guest";
+    let id = "";
+
+    return {
+      onOpen(_event, ws) {
+        id = role === "host" ? openHost(ws) : openGuest(ws);
+      },
+      onMessage(event) {
+        const data = typeof event.data === "string" ? event.data : String(event.data);
+        if (role === "host") handleHostMessage(id, data);
+        else handleGuestMessage(id, data);
+      },
+      onClose() {
+        if (role === "host") closeHost(id);
+        else closeGuest(id);
+      },
+      onError() {
+        if (role === "host") closeHost(id);
+        else closeGuest(id);
       },
     };
   }),

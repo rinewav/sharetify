@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ChevronLeft, ChevronRight, Wifi, WifiOff } from "lucide-react";
 import type { CacheState, NodeHealth } from "@musicshare/shared";
 import { MobileNav } from "./components/MobileNav.js";
+import { PairingSheet, useAutoPairing } from "./components/PairingSheet.js";
 import { PlayerBar } from "./components/PlayerBar.js";
 import { SessionPanel } from "./components/SessionPanel.js";
 import { Sidebar } from "./components/Sidebar.js";
@@ -22,10 +23,14 @@ export default function App() {
   const [future, setFuture] = useState<Route[]>([]);
   const [sessionPanelOpen, setSessionPanelOpen] = useState(false);
 
+  const [pairingOpen, setPairingOpen] = useState(false);
+
   const sessionConnected = useSession((s) => s.connected);
   const playerError = usePlayer((s) => s.error);
 
-  const health = useNodeHealth();
+  // 前回つないだ相手がいれば、起動時に黙って繋ぎ直す。
+  const peerStatus = useAutoPairing();
+  const health = useNodeHealth(peerStatus);
   const cacheStates = useCacheStates(health?.ok === true);
 
   useAudioEngine();
@@ -117,12 +122,14 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-3">
-              <span
-                className="flex items-center gap-1.5 rounded-full bg-base/60 px-3 py-1.5 text-xs text-ink-muted"
+              <button
+                type="button"
+                onClick={() => setPairingOpen(true)}
+                className="flex items-center gap-1.5 rounded-full bg-base/60 px-3 py-1.5 text-xs text-ink-muted transition hover:text-ink"
                 title={
                   nodeOnline
                     ? "自分の PC に接続しています"
-                    : "自分の PC に接続できていません。ダウンロード済みのみ再生できます"
+                    : "自分の PC に接続できていません。タップしてつなぐ"
                 }
               >
                 {nodeOnline ? (
@@ -130,8 +137,8 @@ export default function App() {
                 ) : (
                   <WifiOff className="size-3.5 text-ink-faint" />
                 )}
-                <span className="hidden sm:inline">{nodeOnline ? "自分の PC" : "オフライン"}</span>
-              </span>
+                <span className="hidden sm:inline">{nodeOnline ? "自分の PC" : "つなぐ"}</span>
+              </button>
               <div className="grid size-8 place-items-center rounded-full bg-surface-3 text-xs font-semibold">
                 り
               </div>
@@ -173,6 +180,8 @@ export default function App() {
         onNavigate={navigate}
         onOpenSession={() => setSessionPanelOpen(true)}
       />
+
+      {pairingOpen && <PairingSheet onClose={() => setPairingOpen(false)} />}
     </div>
   );
 }
@@ -201,8 +210,11 @@ function useAudioEngine(): void {
   }, []);
 }
 
-/** 自分の PC が生きているかを定期的に見る。落ちたら UI に出す。 */
-function useNodeHealth(): NodeHealth | null {
+/**
+ * 自分の PC が生きているかを定期的に見る。落ちたら UI に出す。
+ * 直結の状態が変わったら経路も変わるので、その時点で確かめ直す。
+ */
+function useNodeHealth(peerStatus: string): NodeHealth | null {
   const [health, setHealth] = useState<NodeHealth | null>(null);
 
   useEffect(() => {
@@ -223,7 +235,7 @@ function useNodeHealth(): NodeHealth | null {
       cancelled = true;
       clearInterval(timer);
     };
-  }, []);
+  }, [peerStatus]);
 
   return health;
 }

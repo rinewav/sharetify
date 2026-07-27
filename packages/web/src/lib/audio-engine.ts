@@ -1,6 +1,11 @@
 import type { Track } from "@musicshare/shared";
 import { attachBackend, usePlayer } from "./player-store.js";
-import { artworkUrl, streamUrl } from "./node-client.js";
+import {
+  artworkUrl,
+  canStreamDirectly,
+  fetchTrackObjectUrl,
+  streamUrl,
+} from "./node-client.js";
 
 /**
  * 実際の再生を担う層。
@@ -27,6 +32,8 @@ class AudioEngine {
   private unlocking = false;
   /** 再生許可を取る前に play を頼まれた場合に、許可が取れ次第再生する。 */
   private playWhenUnlocked = false;
+  /** 直結で受け取った音声。差し替えるときに解放する。 */
+  private objectUrl: string | null = null;
 
   init(): void {
     if (this.el) return;
@@ -149,9 +156,54 @@ class AudioEngine {
 
     // 曲が変わったときだけ読み込み直す。同じ曲なら位置を保ったまま再開する。
     if (this.loadedTrackId !== track.id) {
-      this.loadTrack(track);
+      void this.loadTrack(track);
+      return;
     }
 
+    this.startPlayback();
+  }
+
+  private async loadTrack(track: Track): Promise<void> {
+    const el = this.el;
+    if (!el) return;
+
+    this.loadedTrackId = track.id;
+    usePlayer.getState().reportDuration(0);
+    usePlayer.getState().reportLoading(true);
+    this.syncMediaSession();
+
+    this.releaseObjectUrl();
+
+    try {
+      if (canStreamDirectly()) {
+        // 中継経路では URL をそのまま渡せる。解決を待たないので頭出しが速い。
+        el.src = streamUrl(track.id);
+      } else {
+        // 直結では一度受け取りきる。待つあいだに曲が変わっていたら捨てる。
+        const url = await fetchTrackObjectUrl(track.id);
+        if (this.loadedTrackId !== track.id) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        this.objectUrl = url;
+        el.src = url;
+      }
+
+      el.load();
+      this.startPlayback();
+    } catch (error) {
+      usePlayer
+        .getState()
+        .reportError(error instanceof Error ? error.message : "曲を取得できませんでした。");
+      usePlayer.getState().reportPlaying(false);
+    }
+  }
+
+  private startPlayback(): void {
+    const el = this.el;
+    if (!el) return;
+
+    const player = usePlayer.getState();
     el.volume = player.muted ? 0 : player.volume;
     player.reportLoading(true);
 
@@ -163,16 +215,11 @@ class AudioEngine {
     this.syncMediaSession();
   }
 
-  private loadTrack(track: Track): void {
-    const el = this.el;
-    if (!el) return;
-
-    this.loadedTrackId = track.id;
-    // 解決を待たずに開ける URL。待つと再生許可が切れる。
-    el.src = streamUrl(track.id);
-    el.load();
-    usePlayer.getState().reportDuration(0);
-    this.syncMediaSession();
+  /** 受け取りきった音声の後始末。放っておくと端末の記憶を食い続ける。 */
+  private releaseObjectUrl(): void {
+    if (!this.objectUrl) return;
+    URL.revokeObjectURL(this.objectUrl);
+    this.objectUrl = null;
   }
 
   private pause(): void {

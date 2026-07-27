@@ -45,8 +45,12 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
-  /* 端末の実際の表示高さに合わせる。アドレスバーの出入りで狂わせない。 */
-  height: 100dvh;
+  /*
+   * 高さは inset: 0 に任せる。
+   * ここで 100dvh を重ねると、そちらが優先されて下端の指定が効かなくなる。
+   * ホーム画面から起動したときの dvh は画面いっぱいより小さく出ることがあり、
+   * 差分がそのまま下の余白になっていた。
+   */
 }
 
 /* 内側でスクロールする領域は、慣性が親に伝わらないようにする。 */
