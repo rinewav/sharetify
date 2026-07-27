@@ -7,6 +7,7 @@ import type {
   HistoryMergeResponse,
   LyricsResult,
   NodeHealth,
+  PresenceStatus,
   RadioResponse,
   ResolveResponse,
   SearchResponse,
@@ -330,6 +331,25 @@ export function nodeMergeHistory(
 /** PC が預かっているものを捨てる。端末側で消したときに合わせる。 */
 export function nodeClearHistory(): Promise<HistoryMergeResponse> {
   return post<HistoryMergeResponse>("/api/history/clear");
+}
+
+/* --------------------------- Discord への表示 --------------------------- */
+
+export function presenceStatus(): Promise<PresenceStatus> {
+  return getJson<PresenceStatus>("/api/presence");
+}
+
+export function setPresenceEnabled(enabled: boolean): Promise<PresenceStatus> {
+  return post<PresenceStatus>("/api/presence", { enabled });
+}
+
+/** いま聴いているものを伝える。何も聴いていなければ null。 */
+export function reportPresence(
+  track: { title: string; artist: string; artworkUrl?: string; durationMs?: number } | null,
+  positionMs?: number,
+  paused?: boolean,
+): Promise<PresenceStatus> {
+  return post<PresenceStatus>("/api/presence", { track, positionMs, paused });
 }
 
 /* ------------------------------ 迎える側 ------------------------------ */

@@ -13,6 +13,7 @@ import {
   type LyricsResult,
   type NodeHealth,
   type ResolveResponse,
+  type PresenceRequest,
   type SearchResponse,
   type Track,
 } from "@sharetify/shared";
@@ -46,6 +47,12 @@ import {
   setLastfmKeys,
   updateNowPlaying,
 } from "./lastfm.js";
+import {
+  DiscordPresence,
+  discordEnabled,
+  loadDiscordConfig,
+  setDiscordEnabled,
+} from "./discord.js";
 import { fetchLyrics } from "./lyrics.js";
 import { PeerHost } from "./peer.js";
 import {
@@ -88,6 +95,9 @@ const lyricsCache = new Map<string, LyricsResult>();
 
 /** 汎用のおすすめの控え。中身の移り変わりが遅いので使い回す。 */
 let discoverCache: { at: number; value: DiscoverResponse } | null = null;
+
+/** Discord への表示役。使わない設定なら、繋ぎにも行かない。 */
+const presence = new DiscordPresence();
 
 export function createNodeApp(): Hono {
   const app = new Hono();
@@ -268,7 +278,7 @@ export function createNodeApp(): Hono {
    * この PC のほうが長生きするので、寄せ集める場所をこちらに置く。
    * 電話で聴いたものが PC のおすすめに効き、その逆も効く。
    *
-   * ここを行き来するのは、この機械と、この機械に繋いだ端末の間だけ。
+   * ここを行き来するのは、このパソコンと、ここに繋いだ端末の間だけ。
    * 中央サーバーは通らない。
    */
   app.get(NODE_ROUTES.history, (c) =>
@@ -312,6 +322,48 @@ export function createNodeApp(): Hono {
       cursor: historyCursor(),
       origin: historyOrigin(),
     });
+  });
+
+  /*
+   * Discord への表示。
+   *
+   * 端末で鳴っているものも、繋がっていればここへ届く。
+   * 表示するかどうかはこの PC の設定で、中央サーバーは関与しない。
+   */
+  app.get(NODE_ROUTES.presence, (c) =>
+    c.json({ enabled: discordEnabled(), connected: presence.ready }),
+  );
+
+  app.post(NODE_ROUTES.presence, async (c) => {
+    const body = await c.req.json<PresenceRequest & { enabled?: boolean }>().catch(() => null);
+    if (!body) return c.json({ error: "invalid body" }, 400);
+
+    // 使うかどうかの切り替えも同じ入口で受ける。
+    if (typeof body.enabled === "boolean") {
+      await setDiscordEnabled(body.enabled);
+      if (body.enabled) presence.start();
+      else {
+        presence.update(null);
+        presence.stop();
+      }
+      return c.json({ enabled: discordEnabled(), connected: presence.ready });
+    }
+
+    if (!discordEnabled()) return c.json({ enabled: false, connected: false });
+
+    presence.update(
+      body.track
+        ? {
+            title: body.track.title,
+            artist: body.track.artist,
+            ...(body.track.artworkUrl ? { artworkUrl: body.track.artworkUrl } : {}),
+            ...(body.track.durationMs ? { durationMs: body.track.durationMs } : {}),
+            ...(body.positionMs !== undefined ? { positionMs: body.positionMs } : {}),
+            paused: body.paused === true,
+          }
+        : null,
+    );
+    return c.json({ enabled: true, connected: presence.ready });
   });
 
   /** 端末側で捨てたときに、こちらも合わせる。 */
@@ -543,6 +595,8 @@ export async function startNodeServer(port = NODE_DEFAULT_PORT, webRoot?: string
   await initCache();
   await loadLastfmConfig();
   await loadHistory();
+  await loadDiscordConfig();
+  if (discordEnabled()) presence.start();
 
   /*
    * 立ち上げる時点で、使える実行ファイルを見つけておく。
@@ -552,7 +606,7 @@ export async function startNodeServer(port = NODE_DEFAULT_PORT, webRoot?: string
   useToolchain(tools.python, tools.resolverBin);
   console.log(
     tools.ready
-      ? "[node] 道具立ては整っています"
+      ? "[node] 検索エンジン・ダウンローダーとも準備完了"
       : `[node] 道具立てが足りません: ${tools.message ?? ""}`,
   );
   const app = createNodeApp();

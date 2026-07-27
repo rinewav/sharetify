@@ -210,6 +210,32 @@ export interface HistoryMergeResponse {
   origin: string;
 }
 
+/* ------------------------------------------------------------------
+ * Discord への表示
+ *
+ * いま聴いているものを Discord のプロフィールに出す。
+ * 表示するのはこの PC の中で完結する話で、中央サーバーは関与しない。
+ * ------------------------------------------------------------------ */
+
+export interface PresenceRequest {
+  /** 何も聴いていなければ null。表示を消す。 */
+  track: {
+    title: string;
+    artist: string;
+    artworkUrl?: string;
+    durationMs?: number;
+  } | null;
+  positionMs?: number;
+  paused?: boolean;
+}
+
+export interface PresenceStatus {
+  /** 利用者がこの機能を使うと決めているか。 */
+  enabled: boolean;
+  /** Discord に実際に繋がっているか。 */
+  connected: boolean;
+}
+
 export const NODE_ROUTES = {
   health: "/api/health",
   search: "/api/search",
@@ -227,4 +253,6 @@ export const NODE_ROUTES = {
   /** 聴いた跡。PC と端末の間だけで寄せ合う。中央は通らない。 */
   history: "/api/history",
   historyMerge: "/api/history/merge",
+  /** Discord への表示。 */
+  presence: "/api/presence",
 } as const;

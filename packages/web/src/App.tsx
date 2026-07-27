@@ -16,6 +16,7 @@ import { Setup, setupDone } from "./components/Setup.js";
 import { SignInSheet } from "./components/SignInSheet.js";
 import { Sidebar } from "./components/Sidebar.js";
 import { audioEngine } from "./lib/audio-engine.js";
+import { startDiscordPresence } from "./lib/discord-presence.js";
 import { startHistorySync } from "./lib/history-sync.js";
 import { storedToken } from "./lib/hub-client.js";
 import { useLibrary } from "./lib/library-store.js";
@@ -65,6 +66,7 @@ export default function App() {
   useAudioEngine();
   useLibrarySync();
   useHistorySync();
+  useDiscordPresence();
 
   /*
    * まだ誰でもないなら名前を決めてもらう。共有には名前が要る。
@@ -396,6 +398,13 @@ function useLibrarySync(): void {
 function useHistorySync(): void {
   useEffect(() => {
     startHistorySync();
+  }, []);
+}
+
+/** いま聴いているものを Discord に伝える。使うかどうかは PC 側の設定で決まる。 */
+function useDiscordPresence(): void {
+  useEffect(() => {
+    startDiscordPresence();
   }, []);
 }
 

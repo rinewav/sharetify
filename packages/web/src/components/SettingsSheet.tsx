@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Check, ExternalLink, Loader2, RotateCcw, Trash2, TriangleAlert, X } from "lucide-react";
-import type { NodeHealth } from "@sharetify/shared";
+import type { NodeHealth, PresenceStatus } from "@sharetify/shared";
 import { Sheet } from "./Sheet.js";
 import { useLibrary } from "../lib/library-store.js";
 import {
@@ -10,6 +10,8 @@ import {
   lastfmDisconnect,
   lastfmSetKeys,
   lastfmStatus,
+  presenceStatus,
+  setPresenceEnabled,
   type LastfmStatus,
 } from "../lib/node-client.js";
 import { clearSharedHistory } from "../lib/history-sync.js";
@@ -17,6 +19,9 @@ import { cacheUsage, clearCache, formatBytes } from "../lib/offline-cache.js";
 import { peerClient } from "../lib/peer-client.js";
 import { clearHistory, historySize, onHistoryChange } from "../lib/play-history.js";
 import { setScrobblingEnabled } from "../lib/scrobbler.js";
+
+/** 配布物の置き場。新しいものが出ていないかはここで見てもらう。 */
+const RELEASES_URL = "https://github.com/rinewav/sharetify/releases/latest";
 
 interface Props {
   onClose: () => void;
@@ -77,7 +82,7 @@ export function SettingsSheet({
             そのときは、直し方への入口をここに出す。
           */}
           {nodeOnline && health && !health.resolverReady && (
-            <Section title="曲を取ってくる仕掛け">
+            <Section title="ダウンローダー">
               <div className="flex items-start gap-2.5 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-200">
                 <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
                 <span>{health.resolverMessage ?? "整っていません。"}</span>
@@ -97,6 +102,7 @@ export function SettingsSheet({
           )}
 
           <HistorySection />
+          <DiscordSection nodeOnline={nodeOnline} />
           <OfflineSection />
           <LastfmSection nodeOnline={nodeOnline} />
 
@@ -113,6 +119,8 @@ export function SettingsSheet({
               もう一度見る
             </button>
           </Section>
+
+          <AboutSection />
 
           {user && (
             <Section title="サインイン">
@@ -424,4 +432,82 @@ function usePeerReady(): boolean {
   const [ready, setReady] = useState(() => canReachNode());
   useEffect(() => peerClient.onStatus(() => setReady(canReachNode())), []);
   return ready;
+}
+
+/**
+ * Discord に「いま聴いているもの」を出す。
+ *
+ * 実際に Discord と話すのは自分の PC の側。
+ * 端末で鳴らしていても、繋がっていれば PC 経由で表示に出る。
+ */
+function DiscordSection({ nodeOnline }: { nodeOnline: boolean }) {
+  const [status, setStatus] = useState<PresenceStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!nodeOnline) return;
+    let cancelled = false;
+    void presenceStatus()
+      .then((s) => !cancelled && setStatus(s))
+      .catch(() => !cancelled && setStatus(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [nodeOnline]);
+
+  const toggle = async () => {
+    setBusy(true);
+    try {
+      setStatus(await setPresenceEnabled(!status?.enabled));
+    } catch {
+      // 切り替えられなかった。表示はそのまま。
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!nodeOnline) return null;
+
+  return (
+    <Section title="Discord">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs leading-relaxed text-ink-muted">
+          聴いている曲を Discord のプロフィールに表示します。
+          {status?.enabled &&
+            (status.connected
+              ? " Discord に接続済みです。"
+              : " Discord が起動していないため、まだ接続できていません。")}
+        </p>
+        <button
+          type="button"
+          onClick={() => void toggle()}
+          disabled={busy}
+          className={`shrink-0 rounded-full px-4 py-2 text-xs font-medium transition disabled:opacity-40 ${
+            status?.enabled
+              ? "bg-accent text-accent-ink hover:brightness-110"
+              : "bg-surface-3 hover:bg-line"
+          }`}
+        >
+          {busy ? "…" : status?.enabled ? "オン" : "オフ"}
+        </button>
+      </div>
+    </Section>
+  );
+}
+
+/** このアプリについて。新しい版が出ていないかは、ここから見てもらう。 */
+function AboutSection() {
+  return (
+    <Section title="このアプリについて">
+      <a
+        href={RELEASES_URL}
+        target="_blank"
+        rel="noreferrer"
+        className="flex w-full items-center justify-center gap-2 rounded-full border border-line py-2.5 text-xs text-ink-muted transition hover:border-ink-muted hover:text-ink"
+      >
+        <ExternalLink className="size-3.5" />
+        最新版を確認する
+      </a>
+    </Section>
+  );
 }
