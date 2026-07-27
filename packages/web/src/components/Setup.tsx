@@ -176,7 +176,7 @@ function Content({
 /**
  * 曲を探して取ってくるための道具を整える。
  *
- * 機械に元から入っているものではないので、そのままでは何も探せない。
+ * パソコンに元から入っているものではないので、そのままでは何も探せない。
  * 手で入れてもらうのは酷なので、ここで用意する。
  */
 function ToolchainStep() {
@@ -217,7 +217,7 @@ function ToolchainStep() {
         <Badge ok>準備できています</Badge>
         <h1 className="mt-4 text-2xl font-bold tracking-tight">曲を探せます</h1>
         <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-          必要な道具はそろっています。このまま進んでください。
+          必要なツールはすべて準備できています。このまま次へ進んでください。
         </p>
       </div>
     );
@@ -225,24 +225,28 @@ function ToolchainStep() {
 
   return (
     <div className="animate-rise">
-      <Badge>もう少しで使えます</Badge>
-      <h1 className="mt-4 text-2xl font-bold tracking-tight">道具をそろえる</h1>
+      <Badge>あと少しで完了します</Badge>
+      <h1 className="mt-4 text-2xl font-bold tracking-tight">セットアップ</h1>
       <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-        曲を探して取ってくるのに、外の仕掛けを二つ借りています。
-        この PC の中に置き場を作って、そこに入れます。
-        機械に元から入っているものには触りません。
+        曲の検索とダウンロードに、2 つのオープンソースツールを使います。
+        この PC 内の専用ディレクトリにインストールするので、
+        システムには影響しません。管理者権限も不要です。
+        Python がインストールされていない場合は、それも自動で用意します。
+      </p>
+      <p className="mt-2 text-xs leading-relaxed text-ink-faint">
+        回線速度によりますが、数分かかります。
       </p>
 
       <div className="mt-5 space-y-2.5 rounded-lg bg-surface p-4">
         <Manual
           n={1}
           icon={status?.catalog ? <Check className="size-4 text-accent" /> : <Search className="size-4" />}
-          text="曲を探す仕掛け"
+          text="検索エンジン (ytmusicapi)"
         />
         <Manual
           n={2}
           icon={status?.resolver ? <Check className="size-4 text-accent" /> : <Download className="size-4" />}
-          text="音を取ってくる仕掛け"
+          text="ダウンローダー (yt-dlp)"
         />
       </div>
 
@@ -478,7 +482,7 @@ function HostStep({ health }: { health: NodeHealth | null }) {
           <TriangleAlert className="mt-0.5 size-4 shrink-0" />
           <span>
             {health?.resolverMessage ??
-              "曲を取ってくる仕掛けがまだ整っていません。整うまで、新しい曲は鳴らせません。"}
+              "ダウンローダーの準備が完了していません。完了するまで、新しい曲は再生できません。"}
           </span>
         </div>
       )}

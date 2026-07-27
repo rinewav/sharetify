@@ -4,16 +4,17 @@ import { mkdir, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { ensurePython, isNewEnough, pythonVersion } from "./python.js";
 
 /**
  * 曲を探して取ってくるための道具立て。
  *
  * この仕組みは、外の仕掛けを二つ借りている。
- * どちらも機械に元から入っているものではないので、
+ * どちらもパソコンに元から入っているものではないので、
  * 配ったままでは何も探せないし鳴らせない。
  *
  * 手で入れてもらうのは酷なので、置き場を自分で用意して、
- * その中に入れる。機械に元から入っているものには触らない。
+ * その中に入れる。パソコンに元から入っているものには触らない。
  */
 
 const run = promisify(execFile);
@@ -63,7 +64,7 @@ async function hasModule(python: string, name: string): Promise<boolean> {
 /**
  * いまの状態を調べる。
  *
- * 用意した置き場を先に見て、無ければ機械に元から入っているものを探す。
+ * 用意した置き場を先に見て、無ければパソコンに元から入っているものを探す。
  * 自分で入れた人の環境を邪魔しないため。
  */
 export async function inspectToolchain(): Promise<ToolchainStatus> {
@@ -112,64 +113,12 @@ export async function inspectToolchain(): Promise<ToolchainStatus> {
       ? {}
       : {
           message: !catalog && !resolver
-            ? "曲を探す仕掛けと、音を取ってくる仕掛けが、どちらも整っていません。"
+            ? "検索エンジンとダウンローダーが、どちらもインストールされていません。"
             : !catalog
-              ? "曲を探す仕掛けが整っていません。"
-              : "音を取ってくる仕掛けが整っていません。",
+              ? "検索エンジンがインストールされていません。"
+              : "ダウンローダーがインストールされていません。",
         }),
   };
-}
-
-/**
- * 置き場を作るのに使える Python を探す。
- *
- * 音を取ってくる仕掛けは新しい Python でないと入らない。
- * 機械に元から入っているものは古いことがあり
- * (macOS の既定は 3.9、必要なのは 3.10 以上)、
- * それで作ると古い版しか入らず、供給元の変更に追いつけなくなる。
- * 使えるものを順に当たり、見つからなければその旨を伝える。
- */
-async function findUsableBasePython(): Promise<string> {
-  const named = process.env["SHARETIFY_BASE_PYTHON"];
-  const candidates = [
-    named,
-    // 新しいものから順に当たる。
-    "python3.14",
-    "python3.13",
-    "python3.12",
-    "python3.11",
-    "python3.10",
-    "python3",
-    "python",
-  ].filter((p): p is string => Boolean(p));
-
-  const found: string[] = [];
-  for (const candidate of candidates) {
-    const version = await pythonVersion(candidate);
-    if (!version) continue;
-    found.push(`${candidate} (${version.major}.${version.minor})`);
-    // 3.10 以上でないと、音を取ってくる仕掛けが新しくならない。
-    if (version.major > 3 || (version.major === 3 && version.minor >= 10)) return candidate;
-  }
-
-  throw new Error(
-    found.length > 0
-      ? `使える Python が古すぎます (見つかったもの: ${found.join(", ")})。` +
-        "3.10 以上を入れてから、もう一度お試しください。"
-      : "この機械には Python が見当たりません。先に Python を入れてから、もう一度お試しください。",
-  );
-}
-
-/** その Python の版を調べる。動かなければ null。 */
-async function pythonVersion(bin: string): Promise<{ major: number; minor: number } | null> {
-  try {
-    const { stdout } = await run(bin, ["--version"], { timeout: 10_000 });
-    const matched = /Python (\d+)\.(\d+)/.exec(stdout);
-    if (!matched) return null;
-    return { major: Number(matched[1]), minor: Number(matched[2]) };
-  } catch {
-    return null;
-  }
 }
 
 export type SetupProgress = (step: string, detail?: string) => void;
@@ -177,7 +126,7 @@ export type SetupProgress = (step: string, detail?: string) => void;
 /**
  * 足りないものを入れる。
  *
- * 機械に元から入っているものには触らない。
+ * パソコンに元から入っているものには触らない。
  * 専用の置き場を作って、その中だけで完結させる。
  * 消したくなったら、その置き場ごと捨てれば元に戻る。
  */
@@ -192,42 +141,50 @@ export async function installToolchain(onProgress: SetupProgress = () => {}): Pr
    * 「再生できませんでした」になる。
    */
   const current = existsSync(pythonPath) ? await pythonVersion(pythonPath) : null;
-  const tooOld = current !== null && current.major === 3 && current.minor < 10;
+  const tooOld = existsSync(pythonPath) && !isNewEnough(current);
 
   if (!existsSync(pythonPath) || tooOld) {
+    /*
+     * 先に、置き場を作れる Python を確かめる。
+     *
+     * パソコンに無ければ、こちらで取ってくる。突き放しても
+     * 何をどう入れればよいかは伝わらないし、入れたところで
+     * 版が合わなければ同じところで止まる。
+     */
+    const base = await ensurePython(onProgress);
+
     if (tooOld) {
-      onProgress("置き場を作り直しています");
+      onProgress("実行環境を作り直しています");
       await rm(VENV, { recursive: true, force: true });
     } else {
-      onProgress("置き場を作っています");
+      onProgress("実行環境を作成しています");
     }
-    const base = await findUsableBasePython();
-    await run(base, ["-m", "venv", VENV], { timeout: 120_000 });
+    await run(base, ["-m", "venv", VENV], { timeout: 180_000 });
   }
 
   /*
    * 入れる道具を新しくしておく。
    * 古いままだと、入れようとしたものを取ってこられないことがある。
    */
-  onProgress("下ごしらえをしています");
+  onProgress("パッケージ管理ツールを更新しています");
   await run(pythonPath, ["-m", "pip", "install", "--upgrade", "pip"], {
     timeout: 180_000,
   }).catch(() => undefined);
 
-  onProgress("曲を探す仕掛けを入れています", "ytmusicapi");
+  onProgress("検索エンジンをインストールしています", "ytmusicapi");
   await run(pythonPath, ["-m", "pip", "install", "--upgrade", "ytmusicapi"], {
     timeout: 300_000,
   });
 
-  onProgress("音を取ってくる仕掛けを入れています", "yt-dlp");
+  onProgress("ダウンローダーをインストールしています", "yt-dlp");
   await run(pythonPath, ["-m", "pip", "install", "--upgrade", "yt-dlp"], {
     timeout: 300_000,
   });
 
-  onProgress("確かめています");
+  onProgress("動作を確認しています");
   const status = await inspectToolchain();
   if (!status.ready) {
-    throw new Error(status.message ?? "うまく整いませんでした。");
+    throw new Error(status.message ?? "セットアップに失敗しました。");
   }
   return status;
 }
@@ -239,7 +196,7 @@ export async function installToolchain(onProgress: SetupProgress = () => {}): Pr
  * 全部入れ直さなくても、これだけ新しくすれば直ることが多い。
  */
 export async function updateResolver(onProgress: SetupProgress = () => {}): Promise<void> {
-  if (!existsSync(pythonPath)) throw new Error("まだ置き場が用意されていません。");
-  onProgress("音を取ってくる仕掛けを新しくしています");
+  if (!existsSync(pythonPath)) throw new Error("実行環境がまだ作成されていません。");
+  onProgress("ダウンローダーを更新しています");
   await run(pythonPath, ["-m", "pip", "install", "--upgrade", "yt-dlp"], { timeout: 300_000 });
 }
