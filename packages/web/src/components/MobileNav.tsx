@@ -14,7 +14,7 @@ export function MobileNav({ route, onNavigate, onOpenSession }: Props) {
      * 画面の下端に接しているので、ホームバーを避けるのはここの役目。
      * 背景は端まで伸ばしたまま、内側の余白でラベルを持ち上げる。
      */
-    <nav className="flex items-stretch justify-around border-t border-line bg-base pt-1 pb-[calc(0.5rem+env(safe-area-inset-bottom))] md:hidden">
+    <nav className="pad-bottom-safe flex items-stretch justify-around border-t border-line bg-base pt-1 md:hidden">
       <Item
         icon={<Home className="size-5" />}
         label="ホーム"

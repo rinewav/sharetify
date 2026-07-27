@@ -59,6 +59,38 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+/*
+ * 画面の縁を避けるための余白。
+ *
+ * ホーム画面から起動した場合、表示領域そのものが既に上端の帯を避けた
+ * 大きさで渡される (実測で画面 844 に対し 797、差の 47 は上端の帯と一致)。
+ * そこへ同じ分を足すと二重になるので、その場合は足さない。
+ * ブラウザで開いたときは表示領域が画面いっぱいなので、こちらで避ける。
+ */
+@utility pad-top-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+@utility pad-bottom-safe {
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+}
+
+@media (display-mode: standalone) {
+  .pad-top-safe {
+    padding-top: 0;
+  }
+}
+
+/* 表示の境目を確かめるための枠。実測表示を出しているときだけ使う。 */
+.debug-bounds-body {
+  outline: 2px solid #ff00aa;
+  outline-offset: -2px;
+}
+.debug-bounds-nav {
+  outline: 2px solid #00d0ff;
+  outline-offset: -2px;
+}
+
 /* スクロールバーは主張させない。コンテンツに視線を残す。 */
 ::-webkit-scrollbar {
   width: 12px;

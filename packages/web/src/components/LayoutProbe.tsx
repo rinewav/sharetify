@@ -12,16 +12,16 @@ interface Metrics {
   /** 端末が持つ画面の高さ。ここが基準。 */
   screenHeight: number;
   innerHeight: number;
-  visualViewport: number;
+  systemInset: number;
   bodyTop: number;
   bodyBottom: number;
   bodyHeight: number;
+  rootPaddingTop: string;
   bodyPaddingBottom: string;
   safeTop: string;
   safeBottom: string;
   navPaddingBottom: string;
-  /** 一番下の要素の下端から画面の下端までの隙間。これが余白の正体。 */
-  gapToScreenBottom: number | null;
+  gapBelowNav: number | null;
   standalone: boolean;
 }
 
@@ -49,15 +49,23 @@ function measure(): Metrics {
   return {
     screenHeight,
     innerHeight: Math.round(window.innerHeight),
-    visualViewport: Math.round(window.visualViewport?.height ?? 0),
+    /*
+     * 端末側が既に確保している分。
+     * ここが上端の帯と同じなら、こちらで上に余白を足すと二重になる。
+     */
+    systemInset: Math.round(screenHeight - window.innerHeight),
     bodyTop: Math.round(bodyRect.top),
     bodyBottom: Math.round(bodyRect.bottom),
     bodyHeight: Math.round(bodyRect.height),
+    rootPaddingTop: getComputedStyle(
+      document.getElementById("root")?.firstElementChild ?? document.body,
+    ).paddingTop,
     bodyPaddingBottom: styles.paddingBottom,
     safeTop,
     safeBottom,
     navPaddingBottom: nav ? getComputedStyle(nav).paddingBottom : "-",
-    gapToScreenBottom: navRect ? Math.round(screenHeight - navRect.bottom) : null,
+    /** 下部ナビの下端が表示領域の下端に達しているか。 */
+    gapBelowNav: navRect ? Math.round(window.innerHeight - navRect.bottom) : null,
     standalone:
       window.matchMedia("(display-mode: standalone)").matches ||
       (navigator as { standalone?: boolean }).standalone === true,
@@ -70,9 +78,21 @@ export function LayoutProbe() {
   useEffect(() => {
     const update = () => setMetrics(measure());
     update();
+
+    /*
+     * 表示領域と下部ナビに枠を出す。
+     * 数値だけでは、余っているのが描ける範囲の中なのか外なのか分からない。
+     * 枠の外側に黒が残っていれば、それは端末側が塗っている領域。
+     */
+    const nav = document.querySelector("nav.md\\:hidden");
+    document.body.classList.add("debug-bounds-body");
+    nav?.classList.add("debug-bounds-nav");
+
     window.addEventListener("resize", update);
     window.visualViewport?.addEventListener("resize", update);
     return () => {
+      document.body.classList.remove("debug-bounds-body");
+      nav?.classList.remove("debug-bounds-nav");
       window.removeEventListener("resize", update);
       window.visualViewport?.removeEventListener("resize", update);
     };
