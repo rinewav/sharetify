@@ -38,6 +38,7 @@
   "build": {
     "appId": "app.sharetify.desktop",
     "productName": "Sharetify",
+    "afterPack": "scripts/strip-media-usage.mjs",
     "directories": {
       "output": "release",
       "buildResources": "build"

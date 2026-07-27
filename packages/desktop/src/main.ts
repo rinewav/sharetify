@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, dialog, shell } from "electron";
+import { app, BrowserWindow, dialog, session, shell } from "electron";
 import { NODE_DEFAULT_PORT } from "@sharetify/shared";
 import { buildMenu } from "./menu.js";
 import { startNodeServer } from "./server/index.js";
@@ -90,6 +90,35 @@ async function findFreePort(from: number, attempts = 20): Promise<number> {
   throw new Error(`${from} から ${attempts} 個ぶん探しましたが、空きがありません`);
 }
 
+/*
+ * マイクとカメラは断る。
+ *
+ * このアプリは音を鳴らすだけで、録るほうには一切触れない。
+ * ただし内側の描画まわりは、鳴らし先を数えるついでに録り口も覗きにいく。
+ * すると macOS が「マイクを使ってよいか」と持ち主に訊ねてしまう。
+ *
+ * 訊ねる筋のないものなので、要求が上がってくる前にここで断つ。
+ * 断る先は録り書き (media) まわりだけで、それ以外の求めは今までどおり通す。
+ */
+const CAPTURE_PERMISSIONS = new Set(["media", "audioCapture", "videoCapture", "display-capture"]);
+
+function refuseCapturePermissions(): void {
+  const target = session.defaultSession;
+
+  target.setPermissionRequestHandler((_contents, permission, callback) => {
+    callback(!CAPTURE_PERMISSIONS.has(permission));
+  });
+
+  /*
+   * 求めを出さずに「使えるか」だけ確かめにくる道もある。
+   * そちらでも使えないと答えておかないと、覗きにいく処理が走ってしまう。
+   */
+  target.setPermissionCheckHandler((_contents, permission) => !CAPTURE_PERMISSIONS.has(permission));
+
+  // 機器そのものを名指しで掴みにくる道も塞ぐ。
+  target.setDevicePermissionHandler(() => false);
+}
+
 async function createWindow(url: string): Promise<void> {
   // 前に閉じたときの姿で開く。毎回置き直さずに済む。
   const state = await loadWindowState();
@@ -166,6 +195,7 @@ if (!app.requestSingleInstanceLock()) {
     const wanted = Number(process.env.PORT ?? NODE_DEFAULT_PORT);
     const bundled = existsSync(join(BUNDLED_WEB, "index.html"));
 
+    refuseCapturePermissions();
     buildMenu(() => window);
 
     try {
