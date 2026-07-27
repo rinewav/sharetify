@@ -71,6 +71,8 @@ export class PeerClient {
   private retryCount = 0;
   /** 利用者が自分でやめたか。やめたなら繋ぎ直さない。 */
   private stopped = false;
+  /** 道ができるのを待ちきる刻限。過ぎたら諦めて繋ぎ直す。 */
+  private settleTimer: ReturnType<typeof setTimeout> | null = null;
 
   get currentStatus(): PeerStatus {
     return this.status;
@@ -78,6 +80,40 @@ export class PeerClient {
 
   get ready(): boolean {
     return this.channel?.readyState === "open";
+  }
+
+  /**
+   * いま道を作っている最中か。
+   *
+   * 相手と間を取り持つ経路は、話がまとまった時点で役目を終えて閉じる。
+   * だが道そのものはまだできていない。閉じたことだけを見て繋ぎ直すと、
+   * その繋ぎ直しが、できかけの道を壊してしまう。
+   * 何度やっても同じところで壊れるので、いつまでも繋がらない。
+   */
+  private get settling(): boolean {
+    const state = this.connection?.connectionState;
+    return state === "new" || state === "connecting";
+  }
+
+  /**
+   * 待ちきる刻限を引き直す。
+   *
+   * 待つのは正しいが、待ち続けるのは違う。
+   * 相手が黙ったまま何も起きないこともあるので、切りを付ける。
+   */
+  private armSettleTimeout(): void {
+    if (this.settleTimer) clearTimeout(this.settleTimer);
+    this.settleTimer = setTimeout(() => {
+      this.settleTimer = null;
+      if (this.ready || this.stopped) return;
+      this.setStatus("failed", "直接つながりませんでした。");
+      this.scheduleRetry();
+    }, 20_000);
+  }
+
+  private disarmSettleTimeout(): void {
+    if (this.settleTimer) clearTimeout(this.settleTimer);
+    this.settleTimer = null;
   }
 
   onStatus(listener: (status: PeerStatus, detail?: string) => void): () => void {
@@ -98,6 +134,8 @@ export class PeerClient {
    */
   private scheduleRetry(): void {
     if (this.stopped || !this.lastCode || this.retryTimer) return;
+    // 繋がっている、あるいは繋がりかけているものを、横から壊さない。
+    if (this.ready || this.settling) return;
 
     this.retryCount += 1;
     // 1秒から始めて、倍々にしていき、30秒で頭打ちにする。
@@ -131,6 +169,13 @@ export class PeerClient {
 
   /** 合言葉を使って接続する。 */
   connect(code: string, options: { retry?: boolean } = {}): void {
+    /*
+     * 繋ぎ直しは、繋がっていないときのためのもの。
+     * 繋がりかけているところに割り込むと、それを壊してやり直しになる。
+     * 自分から入れ直したときだけは、望みどおり最初からやる。
+     */
+    if (options.retry && (this.ready || this.settling)) return;
+
     this.cancelRetry();
     this.close({ keepRetry: true });
 
@@ -163,9 +208,10 @@ export class PeerClient {
     socket.addEventListener("close", () => {
       /*
        * 引き合わせの経路が閉じただけなら、直結が生きていることもある。
-       * 生きていないときだけ繋ぎ直す。
+       * まだ道を作っている最中のこともある。
+       * どちらでもないときだけ繋ぎ直す。
        */
-      if (this.ready) return;
+      if (this.ready || this.settling) return;
       this.setStatus("closed");
       this.scheduleRetry();
     });
@@ -178,6 +224,8 @@ export class PeerClient {
    * 繋ぎ直しの途中で畳むときだけ、その段取りを残す。
    */
   close(options: { keepRetry?: boolean } = {}): void {
+    this.disarmSettleTimeout();
+
     if (!options.keepRetry) {
       this.stopped = true;
       this.cancelRetry();
@@ -207,6 +255,8 @@ export class PeerClient {
       case "guest:linked":
         // PC 側が経路を作りにくるので、こちらは受け入れる準備だけしておく。
         this.prepareConnection();
+        // ここから先は相手待ち。待ちきる刻限を置く。
+        this.armSettleTimeout();
         return;
 
       case "guest:signal":
@@ -249,11 +299,16 @@ export class PeerClient {
 
     connection.addEventListener("connectionstatechange", () => {
       const state = connection.connectionState;
+      // この繋がりが既に古いなら、その終わりに引きずられない。
+      if (connection !== this.connection) return;
+
       if (state === "failed") {
+        this.disarmSettleTimeout();
         this.setStatus("failed", "直接つながりませんでした。");
         // 電波が変わっただけのこともある。少し待って試し直す。
         this.scheduleRetry();
       } else if (state === "disconnected" || state === "closed") {
+        this.disarmSettleTimeout();
         this.setStatus("closed");
         this.scheduleRetry();
       }
@@ -294,6 +349,7 @@ export class PeerClient {
     channel.addEventListener("open", () => {
       // つながったら数え直す。次に切れたときは、また短い間隔から試す。
       this.retryCount = 0;
+      this.disarmSettleTimeout();
       this.setStatus("connected");
     });
     channel.addEventListener("close", () => {
