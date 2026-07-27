@@ -12,6 +12,7 @@ import {
   forgottenFavorites,
   longListens,
   monthlyRecap,
+  onHistoryChange,
   pickSeeds,
   recentTracks,
   topArtists,
@@ -48,11 +49,18 @@ export function HomeView({ onNavigate, nodeOnline, onAddTo }: Props) {
   const menu = useContextMenu();
   const collectionItems = useCollectionMenuItems();
 
-  const recent = useMemo(() => recentTracks(12), []);
-  const forgotten = useMemo(() => forgottenFavorites(12), []);
-  const longOnes = useMemo(() => longListens(12), []);
-  const recap = useMemo(() => monthlyRecap(), []);
-  const seeds = useMemo(() => pickSeeds(2), []);
+  /*
+   * 跡が変わったら組み立て直す。
+   * 開いた時点のまま出していると、消したはずのものが並び続ける。
+   */
+  const [historyAt, setHistoryAt] = useState(0);
+  useEffect(() => onHistoryChange(() => setHistoryAt((n) => n + 1)), []);
+
+  const recent = useMemo(() => recentTracks(12), [historyAt]);
+  const forgotten = useMemo(() => forgottenFavorites(12), [historyAt]);
+  const longOnes = useMemo(() => longListens(12), [historyAt]);
+  const recap = useMemo(() => monthlyRecap(), [historyAt]);
+  const seeds = useMemo(() => pickSeeds(2), [historyAt]);
 
   const mixes = useMixes(seeds, nodeOnline);
   const discover = useDiscover(nodeOnline);

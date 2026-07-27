@@ -77,6 +77,22 @@ export function attachWebApp(
 ): void {
   app.get("/*", async (c) => {
     const pathname = new URL(c.req.url).pathname;
+
+    /*
+     * 画面の中の移動と、仕組みへの問い合わせを取り違えない。
+     *
+     * ここに来た時点で、その道を受け持つものは登録されていない。
+     * それでも画面を返すと、頼んだ側は中身として読もうとして
+     * 「絵として壊れている」「読めない形が返ってきた」という
+     * 元の原因から遠い形で失敗する。無いものは無いと答える。
+     */
+    if (pathname.startsWith("/api/")) {
+      return new Response(JSON.stringify({ error: "not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+      });
+    }
+
     return webFileResponse(resolveWebFile(webRoot, pathname));
   });
 }

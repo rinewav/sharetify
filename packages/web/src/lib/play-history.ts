@@ -27,6 +27,23 @@ export interface HistoryEntry {
 
 let cache: HistoryEntry[] | null = null;
 
+/**
+ * 跡が変わったことを知らせる先。
+ *
+ * ホームは開いた時点の跡から組み立てるので、
+ * 消したことを伝えないと、消えたはずのものが並んだままになる。
+ */
+const listeners = new Set<() => void>();
+
+export function onHistoryChange(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function notifyChanged(): void {
+  for (const listener of listeners) listener();
+}
+
 function load(): HistoryEntry[] {
   if (cache) return cache;
   try {
@@ -70,6 +87,12 @@ export function allHistory(): HistoryEntry[] {
 export function clearHistory(): void {
   cache = [];
   localStorage.removeItem(STORAGE_KEY);
+  notifyChanged();
+}
+
+/** 何回ぶん覚えているか。消す前に見せて、判断してもらう。 */
+export function historySize(): number {
+  return load().length;
 }
 
 /* ------------------------------ 集計 ------------------------------ */

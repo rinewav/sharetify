@@ -14,7 +14,7 @@ import {
   type MeResponse,
   type Track,
 } from "@sharetify/shared";
-import { attachWebApp } from "@sharetify/shared/server";
+import { artworkResponse, attachWebApp } from "@sharetify/shared/server";
 import {
   addTrackToPlaylist,
   canAccessPlaylist,
@@ -276,6 +276,18 @@ app.delete("/api/playlists/:id", (c) => {
   deletePlaylist(found.playlist.id);
   return c.json({ ok: true });
 });
+
+/*
+ * ジャケットの取り次ぎ。
+ *
+ * 表紙の絵は、自分の PC につないでいる間はそちらから取れる。
+ * ただし画面は繋ぐ前から開いているし、繋いだあとも絵は数が多い。
+ * それを一本の直通路にまとめて流すと、音のための帯域を食い合う。
+ *
+ * 絵は識別子と同じくメタデータの側にあるものなので、ここが代わりに取ってよい。
+ * 音声は変わらずここを通らない。
+ */
+app.get("/api/artwork", (c) => artworkResponse(c.req.query("url")));
 
 app.get("/api/sessions", (c) => {
   const user = requireUser(c.req.header("authorization"));

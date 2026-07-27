@@ -10,6 +10,7 @@ import type {
   SearchResponse,
   Track,
 } from "@sharetify/shared";
+import { HUB_BASE } from "./hub-base.js";
 import { peerClient } from "./peer-client.js";
 import { isDesktopApp } from "./platform.js";
 
@@ -42,6 +43,18 @@ function viaPeer(): boolean {
 }
 
 /**
+ * 自分の PC へ、直に叩ける道があるか。
+ *
+ * 開発中は取り次ぐ役がいる。入れ物の中では仕組みが同じ所にいる。
+ * どちらでもない、中央から配られた画面には、この道が無い。
+ * 無いのにその道を使うと、中央が画面を返し、それを音や絵として
+ * 読もうとして倒れる。行き先の有無は、ここ一箇所で判ずる。
+ */
+function hasDirectRoute(): boolean {
+  return BASE !== "" || isDesktopApp();
+}
+
+/**
  * つないでいないのに投げていないか。
  *
  * 直結が要る作りなのに繋がっていないと、要求は行き場を失う。
@@ -50,14 +63,7 @@ function viaPeer(): boolean {
  * 先に断っておけば、何が足りないのかがそのまま伝わる。
  */
 function assertReachable(): void {
-  if (viaPeer()) return;
-  // 付け足す道がある間は、取り次ぐ役がいる。開発中はこちら。
-  if (BASE !== "") return;
-  /*
-   * 配って回す入れ物の中では、画面と仕組みが同じ所に居る。
-   * 自分自身なので、つなぐ相手を探す必要はない。
-   */
-  if (isDesktopApp()) return;
+  if (viaPeer() || hasDirectRoute()) return;
   throw new Error("自分の PC につながっていません。合言葉でつないでください。");
 }
 
@@ -146,12 +152,25 @@ export function streamUrl(trackId: string): string {
   return `${BASE}/api/stream?trackId=${encodeURIComponent(trackId)}`;
 }
 
+/**
+ * 音を URL のまま渡してよいか。
+ *
+ * 渡せるのは、その URL を閲覧環境が自分で取りに行ける時だけ。
+ * 直結しかない場では取りに行く先が無いので、先に受け取ってから渡す。
+ */
 export function canStreamDirectly(): boolean {
-  return !viaPeer();
+  if (viaPeer()) return false;
+  return hasDirectRoute();
 }
 
 /** 直結のときに、曲を受け取って再生できる形にする。 */
 export async function fetchTrackBlob(trackId: string): Promise<{ url: string; blob: Blob }> {
+  /*
+   * 繋がっていないまま頼むと、返事の来ない待ちに入る。
+   * 待たせたあげく黙って終わるより、足りないものを先に言う。
+   */
+  if (!viaPeer()) throw new Error("自分の PC につながっていません。合言葉でつないでください。");
+
   const reply = await peerClient.request(
     { method: "GET", path: `/api/stream?trackId=${encodeURIComponent(trackId)}`, binary: true },
     5 * 60_000,
@@ -342,11 +361,21 @@ export function lastfmScrobble(track: unknown, playedAt: number): Promise<{ ok: 
 }
 
 /**
- * ジャケットも node 経由で取る。
- * クライアントから外部へ直接取りに行かせない方針をここでも通す。
+ * ジャケットの取り次ぎ先。
+ *
+ * クライアントから外部へ直接取りに行かせない方針は変えない。
+ * ただし取り次ぐ役は、自分の PC でなくてもよい。
+ *
+ * 絵は識別子と同じくメタデータの側にある。音声ではないので、
+ * 中央を通っても「著作物のバイトは中央を通さない」という前提は崩れない。
+ *
+ * 自分の PC に道があるならそちらを使う。外に出ない分だけそちらが良い。
+ * 中央から配られた画面にはその道が無いので、中央に頼む。
+ * こうしておくと、まだ PC につないでいない間も表紙が出る。
+ * 直通路は音のために空けておきたいので、絵はそちらに流さない。
  */
 export function artworkUrl(source: string | undefined): string | undefined {
   if (!source) return undefined;
-  // 直結中は画像を個別に取りに行くと要求が増えるので、中継の口をそのまま使う。
-  return `${BASE}/api/artwork?url=${encodeURIComponent(source)}`;
+  if (hasDirectRoute()) return `${BASE}/api/artwork?url=${encodeURIComponent(source)}`;
+  return `${HUB_BASE}/api/artwork?url=${encodeURIComponent(source)}`;
 }

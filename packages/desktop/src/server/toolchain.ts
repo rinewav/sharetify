@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -120,6 +120,58 @@ export async function inspectToolchain(): Promise<ToolchainStatus> {
   };
 }
 
+/**
+ * 置き場を作るのに使える Python を探す。
+ *
+ * 音を取ってくる仕掛けは新しい Python でないと入らない。
+ * 機械に元から入っているものは古いことがあり
+ * (macOS の既定は 3.9、必要なのは 3.10 以上)、
+ * それで作ると古い版しか入らず、供給元の変更に追いつけなくなる。
+ * 使えるものを順に当たり、見つからなければその旨を伝える。
+ */
+async function findUsableBasePython(): Promise<string> {
+  const named = process.env["SHARETIFY_BASE_PYTHON"];
+  const candidates = [
+    named,
+    // 新しいものから順に当たる。
+    "python3.14",
+    "python3.13",
+    "python3.12",
+    "python3.11",
+    "python3.10",
+    "python3",
+    "python",
+  ].filter((p): p is string => Boolean(p));
+
+  const found: string[] = [];
+  for (const candidate of candidates) {
+    const version = await pythonVersion(candidate);
+    if (!version) continue;
+    found.push(`${candidate} (${version.major}.${version.minor})`);
+    // 3.10 以上でないと、音を取ってくる仕掛けが新しくならない。
+    if (version.major > 3 || (version.major === 3 && version.minor >= 10)) return candidate;
+  }
+
+  throw new Error(
+    found.length > 0
+      ? `使える Python が古すぎます (見つかったもの: ${found.join(", ")})。` +
+        "3.10 以上を入れてから、もう一度お試しください。"
+      : "この機械には Python が見当たりません。先に Python を入れてから、もう一度お試しください。",
+  );
+}
+
+/** その Python の版を調べる。動かなければ null。 */
+async function pythonVersion(bin: string): Promise<{ major: number; minor: number } | null> {
+  try {
+    const { stdout } = await run(bin, ["--version"], { timeout: 10_000 });
+    const matched = /Python (\d+)\.(\d+)/.exec(stdout);
+    if (!matched) return null;
+    return { major: Number(matched[1]), minor: Number(matched[2]) };
+  } catch {
+    return null;
+  }
+}
+
 export type SetupProgress = (step: string, detail?: string) => void;
 
 /**
@@ -132,15 +184,24 @@ export type SetupProgress = (step: string, detail?: string) => void;
 export async function installToolchain(onProgress: SetupProgress = () => {}): Promise<ToolchainStatus> {
   await mkdir(HOME, { recursive: true });
 
-  // 置き場がまだ無ければ作る。
-  if (!existsSync(pythonPath)) {
-    onProgress("置き場を作っています");
-    const base = process.env["SHARETIFY_BASE_PYTHON"] ?? "python3";
-    if (!(await responds(base, ["--version"]))) {
-      throw new Error(
-        "この機械には Python が見当たりません。先に Python を入れてから、もう一度お試しください。",
-      );
+  /*
+   * 置き場がまだ無いか、そこが古すぎるなら作り直す。
+   *
+   * 古い Python で作った置き場には、音を取ってくる仕掛けの新しいものが
+   * 入らない。入らないまま使い続けると、供給元の変更に追いつけず
+   * 「再生できませんでした」になる。
+   */
+  const current = existsSync(pythonPath) ? await pythonVersion(pythonPath) : null;
+  const tooOld = current !== null && current.major === 3 && current.minor < 10;
+
+  if (!existsSync(pythonPath) || tooOld) {
+    if (tooOld) {
+      onProgress("置き場を作り直しています");
+      await rm(VENV, { recursive: true, force: true });
+    } else {
+      onProgress("置き場を作っています");
     }
+    const base = await findUsableBasePython();
     await run(base, ["-m", "venv", VENV], { timeout: 120_000 });
   }
 

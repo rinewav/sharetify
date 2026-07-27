@@ -16,6 +16,7 @@ import {
   type SearchResponse,
   type Track,
 } from "@sharetify/shared";
+import { artworkResponse } from "@sharetify/shared/server";
 import {
   cachePathFor,
   cachedCount,
@@ -237,36 +238,7 @@ export function createNodeApp(): Hono {
    * どこへ何を取りに行っているかが node の中で完結する。
    * 任意の URL を代理で取りに行くと踏み台になるので、宛先は限定する。
    */
-  app.get(NODE_ROUTES.artwork, async (c) => {
-    const raw = c.req.query("url");
-    if (!raw) return c.json({ error: "url is required" }, 400);
-
-    let target: URL;
-    try {
-      target = new URL(raw);
-    } catch {
-      return c.json({ error: "invalid url" }, 400);
-    }
-
-    if (target.protocol !== "https:" || !isAllowedArtworkHost(target.hostname)) {
-      return c.json({ error: "not allowed" }, 403);
-    }
-
-    try {
-      const upstream = await fetch(target, { signal: AbortSignal.timeout(10_000) });
-      if (!upstream.ok || !upstream.body) return c.json({ error: "取得できませんでした" }, 502);
-
-      return new Response(upstream.body, {
-        headers: {
-          "Content-Type": upstream.headers.get("content-type") ?? "image/jpeg",
-          // 同じ絵を何度も取りに行かない。
-          "Cache-Control": "public, max-age=86400, immutable",
-        },
-      });
-    } catch {
-      return c.json({ error: "取得できませんでした" }, 502);
-    }
-  });
+  app.get(NODE_ROUTES.artwork, (c) => artworkResponse(c.req.query("url")));
 
   app.post(NODE_ROUTES.cache, async (c) => {
     const body = await c.req.json<{ trackIds?: string[] }>().catch(() => null);
@@ -440,15 +412,6 @@ async function streamFromDisk(c: { req: { header: (name: string) => string | und
 function describe(error: unknown): string {
   if (error instanceof ResolverFailure) return error.detail.message;
   return "不明なエラーが発生しました。";
-}
-
-/** ジャケットの取得を許す宛先。ここ以外へは代理アクセスしない。 */
-const ARTWORK_HOSTS = ["googleusercontent.com", "ytimg.com", "ggpht.com"];
-
-function isAllowedArtworkHost(hostname: string): boolean {
-  return ARTWORK_HOSTS.some(
-    (allowed) => hostname === allowed || hostname.endsWith(`.${allowed}`),
-  );
 }
 
 /** 拡張子から中身の種類を決める。分からないものは素の列として渡す。 */

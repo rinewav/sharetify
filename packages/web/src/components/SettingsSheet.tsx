@@ -12,6 +12,7 @@ import {
   type LastfmStatus,
 } from "../lib/node-client.js";
 import { cacheUsage, clearCache, formatBytes } from "../lib/offline-cache.js";
+import { clearHistory, historySize } from "../lib/play-history.js";
 import { setScrobblingEnabled } from "../lib/scrobbler.js";
 
 interface Props {
@@ -92,6 +93,7 @@ export function SettingsSheet({
             </Section>
           )}
 
+          <HistorySection />
           <OfflineSection />
           <LastfmSection nodeOnline={nodeOnline} />
 
@@ -143,6 +145,71 @@ function NameSection() {
     <Section title="名前">
       <p className="text-sm">{user?.displayName ?? "未設定"}</p>
       <p className="mt-1 text-xs text-ink-faint">共有したときに相手から見える名前です。</p>
+    </Section>
+  );
+}
+
+/**
+ * 聴いた跡。
+ *
+ * ホームに出てくるおすすめは、すべてこの跡から組み立てている。
+ * 消せば、勧められるものも白紙に戻る。
+ * どこにも送っていないので、消すのはこの端末の中だけの話。
+ */
+function HistorySection() {
+  const [count, setCount] = useState(() => historySize());
+  const [asking, setAsking] = useState(false);
+
+  return (
+    <Section title="聴いた跡">
+      <p className="text-xs text-ink-muted">
+        {count === 0
+          ? "まだありません。聴いた曲がここに溜まります。"
+          : `${count} 回ぶん。ホームのおすすめは、この跡から組み立てています。`}
+      </p>
+
+      {count > 0 &&
+        (asking ? (
+          <div className="mt-2 rounded-md border border-line bg-surface-2 p-3">
+            <p className="text-xs leading-relaxed text-ink-muted">
+              消すと、ホームのおすすめと振り返りが白紙に戻ります。
+              プレイリストと気に入った曲は残ります。
+            </p>
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setAsking(false)}
+                className="flex-1 rounded-full bg-surface-3 py-2 text-xs transition hover:bg-line"
+              >
+                やめる
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  clearHistory();
+                  setCount(0);
+                  setAsking(false);
+                }}
+                className="flex-1 rounded-full bg-red-500/15 py-2 text-xs text-red-300 transition hover:bg-red-500/25"
+              >
+                消す
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setAsking(true)}
+            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-full bg-surface-3 py-2.5 text-xs transition hover:bg-line"
+          >
+            <Trash2 className="size-3.5" />
+            聴いた跡を消す
+          </button>
+        ))}
+
+      <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">
+        跡はこの端末の中にだけあり、どこにも送っていません。
+      </p>
     </Section>
   );
 }
