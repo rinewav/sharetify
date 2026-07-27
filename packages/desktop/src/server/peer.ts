@@ -102,6 +102,7 @@ export class PeerHost {
     this.socket = socket;
 
     socket.addEventListener("open", () => {
+      console.log(`[peer] 繋ぎ役につながりました: ${base}`);
       // 前回と同じ合言葉を頼む。毎回変わるとスマートフォン側の登録が無駄になる。
       this.send({
         type: "host:register",
@@ -120,13 +121,22 @@ export class PeerHost {
       this.handleHubEvent(message);
     });
 
-    socket.addEventListener("close", () => {
+    socket.addEventListener("close", (event) => {
       this.socket = null;
+      if (!this.code) {
+        // 一度も名乗り出られていない。つまり最初から届いていない。
+        console.warn(`[peer] 繋ぎ役との経路が閉じました (code=${event.code})`);
+      }
       this.scheduleReconnect();
     });
 
-    socket.addEventListener("error", () => {
-      // close も続けて飛ぶので、ここでは何もしない。
+    socket.addEventListener("error", (event) => {
+      /*
+       * 繋ぎ役へ届かないと、外から誰も見つけられない。
+       * 黙っていると「合言葉が出ない」ことしか分からないので、理由を残す。
+       */
+      const reason = (event as { message?: string }).message ?? "詳細不明";
+      console.warn(`[peer] 繋ぎ役へ届きません (${url.toString()}): ${reason}`);
     });
   }
 

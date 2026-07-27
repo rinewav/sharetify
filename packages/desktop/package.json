@@ -11,10 +11,11 @@
     "typecheck": "tsc --noEmit",
     "build:app": "pnpm --filter @sharetify/web build && pnpm build && node scripts/bundle-web.mjs",
     "dist": "pnpm build:app && electron-builder --publish never",
-    "dist:mac": "pnpm build:app && pnpm prepare:universal && electron-builder --mac --publish never",
-    "dist:win": "pnpm build:app && electron-builder --win --publish never",
+    "dist:mac": "pnpm build:app && pnpm prepare:mac && electron-builder --mac --publish never",
+    "dist:win": "pnpm build:app && pnpm prepare:win && electron-builder --win --publish never",
     "dist:linux": "pnpm build:app && electron-builder --linux --publish never",
-    "prepare:universal": "node scripts/prepare-universal.mjs"
+    "prepare:mac": "node scripts/prepare-native.mjs mac",
+    "prepare:win": "node scripts/prepare-native.mjs win"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
