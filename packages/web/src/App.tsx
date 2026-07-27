@@ -100,7 +100,9 @@ export default function App() {
   const content = useMemo(() => {
     switch (route.name) {
       case "home":
-        return <HomeView onNavigate={navigate} nodeOnline={nodeOnline} />;
+        return (
+          <HomeView onNavigate={navigate} nodeOnline={nodeOnline} onAddTo={setAddingTrack} />
+        );
       case "search":
         return (
           <SearchView

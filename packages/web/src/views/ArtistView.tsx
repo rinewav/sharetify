@@ -8,6 +8,7 @@ import { formatCount } from "../lib/format.js";
 import { useLibrary } from "../lib/library-store.js";
 import { nodeCollection } from "../lib/node-client.js";
 import { usePlayer } from "../lib/player-store.js";
+import { useCollectionMenuItems, useContextMenu } from "../lib/track-menu.js";
 
 interface Props {
   id: string;
@@ -33,6 +34,35 @@ export function ArtistView({ id, fallbackTitle, cacheStates, onOpenCollection, o
   const [expanded, setExpanded] = useState(false);
   const playQueue = usePlayer((s) => s.playQueue);
   const { isFollowing, follow, unfollow } = useLibrary();
+
+  // 札の右クリック。曲の一覧は TrackList が自前で持っている。
+  const menu = useContextMenu();
+  const collectionItems = useCollectionMenuItems();
+
+  /** まとまりを開かずにその場で流す。中身は必要になってから取りにいく。 */
+  const playCollection = async (kind: CollectionKind, collectionId: string) => {
+    try {
+      const collection = await nodeCollection(kind, collectionId);
+      if (collection.tracks.length > 0) playQueue(collection.tracks, 0);
+    } catch {
+      // 開いて確かめてもらえばよいので、ここでは黙って諦める。
+    }
+  };
+
+  const cardContext =
+    (kind: CollectionKind, target: { id: string; title: string; artworkUrl?: string }) =>
+    (event: React.MouseEvent) =>
+      menu.open(
+        event,
+        collectionItems({
+          kind,
+          id: target.id,
+          title: target.title,
+          ...(target.artworkUrl ? { artworkUrl: target.artworkUrl } : {}),
+          onOpen: () => onOpenCollection(kind, target.id, target.title),
+          onPlay: () => void playCollection(kind, target.id),
+        }),
+      );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -167,11 +197,13 @@ export function ArtistView({ id, fallbackTitle, cacheStates, onOpenCollection, o
         title="アルバム"
         items={data?.albums ?? []}
         onOpen={(release) => onOpenCollection("album", release.id, release.title)}
+        onContextMenu={(release) => cardContext("album", release)}
       />
       <Releases
         title="シングル・EP"
         items={data?.singles ?? []}
         onOpen={(release) => onOpenCollection("album", release.id, release.title)}
+        onContextMenu={(release) => cardContext("album", release)}
       />
 
       {(data?.related?.length ?? 0) > 0 && (
@@ -189,6 +221,11 @@ export function ArtistView({ id, fallbackTitle, cacheStates, onOpenCollection, o
               artworkUrl={artist.artworkUrl}
               round
               onOpen={() => onOpenCollection("artist", artist.id, artist.name)}
+              onContextMenu={cardContext("artist", {
+                id: artist.id,
+                title: artist.name,
+                ...(artist.artworkUrl ? { artworkUrl: artist.artworkUrl } : {}),
+              })}
             />
           ))}
         </Section>
@@ -202,18 +239,30 @@ export function ArtistView({ id, fallbackTitle, cacheStates, onOpenCollection, o
           </p>
         </section>
       )}
+
+      {menu.node}
     </div>
   );
+}
+
+interface Release {
+  id: string;
+  title: string;
+  year?: string;
+  kind?: string;
+  artworkUrl?: string;
 }
 
 function Releases({
   title,
   items,
   onOpen,
+  onContextMenu,
 }: {
   title: string;
-  items: { id: string; title: string; year?: string; kind?: string; artworkUrl?: string }[];
-  onOpen: (item: { id: string; title: string }) => void;
+  items: Release[];
+  onOpen: (item: Release) => void;
+  onContextMenu: (item: Release) => (event: React.MouseEvent) => void;
 }) {
   if (items.length === 0) return null;
   return (
@@ -226,6 +275,7 @@ function Releases({
           subtitle={[item.kind, item.year].filter(Boolean).join(" · ") || "リリース"}
           artworkUrl={item.artworkUrl}
           onOpen={() => onOpen(item)}
+          onContextMenu={onContextMenu(item)}
         />
       ))}
     </Section>

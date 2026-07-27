@@ -10,6 +10,7 @@ interface Props {
   round?: boolean;
   onOpen: () => void;
   onPlay?: () => void;
+  onContextMenu?: (event: React.MouseEvent) => void;
 }
 
 /** 検索結果の「開けるもの」を並べるための札。 */
@@ -21,11 +22,13 @@ export function ResultCard({
   round = false,
   onOpen,
   onPlay,
+  onContextMenu,
 }: Props) {
   return (
     <button
       type="button"
       onClick={onOpen}
+      onContextMenu={onContextMenu}
       className="press group relative min-w-0 rounded-lg bg-surface p-3 text-left transition hover:bg-surface-3 sm:p-4"
     >
       <div className="relative">

@@ -1,21 +1,9 @@
-import { useState } from "react";
-import {
-  Clock3,
-  CornerUpRight,
-  Disc3,
-  Download,
-  ListPlus,
-  Play,
-  Plus,
-  User,
-  Volume2,
-  X,
-} from "lucide-react";
+import { Clock3, Download, Play, Plus, Volume2, X } from "lucide-react";
 import type { CacheState, CollectionKind, Track } from "@musicshare/shared";
 import { Artwork } from "./Artwork.js";
-import { ContextMenu, type MenuItem } from "./ContextMenu.js";
 import { formatDuration } from "../lib/format.js";
 import { usePlayer } from "../lib/player-store.js";
+import { trackMenuItems, useContextMenu } from "../lib/track-menu.js";
 
 interface Props {
   tracks: Track[];
@@ -42,73 +30,9 @@ export function TrackList({
 }: Props) {
   const currentId = usePlayer((s) => s.current()?.id);
   const playing = usePlayer((s) => s.playing);
-  const { playNext, enqueue } = usePlayer();
 
-  /*
-   * 右クリックの品書き。
-   *
-   * 行が知っている情報だけで組めるので、ここで面倒を見る。
-   * 呼び出し側それぞれに配線させると、置き忘れが出る。
-   */
-  const [menu, setMenu] = useState<{ track: Track; x: number; y: number } | null>(null);
-
-  const menuItems = (track: Track, index: number): MenuItem[] => {
-    const items: MenuItem[] = [
-      {
-        label: "再生",
-        icon: <Play className="size-4" />,
-        onSelect: () => onPlay(index),
-      },
-      {
-        label: "次に再生",
-        icon: <CornerUpRight className="size-4" />,
-        onSelect: () => playNext(track),
-      },
-      {
-        label: "最後に追加",
-        icon: <ListPlus className="size-4" />,
-        onSelect: () => enqueue(track),
-      },
-    ];
-
-    if (onAddTo) {
-      items.push({
-        label: "プレイリストに追加",
-        icon: <Plus className="size-4" />,
-        onSelect: () => onAddTo(track),
-        separated: true,
-      });
-    }
-
-    if (track.artistId && onOpenCollection) {
-      items.push({
-        label: "アーティストを開く",
-        icon: <User className="size-4" />,
-        onSelect: () => onOpenCollection("artist", track.artistId!, track.artist),
-        separated: !onAddTo,
-      });
-    }
-
-    if (track.albumId && track.album && onOpenCollection) {
-      items.push({
-        label: "アルバムを開く",
-        icon: <Disc3 className="size-4" />,
-        onSelect: () => onOpenCollection("album", track.albumId!, track.album!),
-      });
-    }
-
-    if (onRemove) {
-      items.push({
-        label: "このプレイリストから外す",
-        icon: <X className="size-4" />,
-        onSelect: () => onRemove(track.id),
-        separated: true,
-        danger: true,
-      });
-    }
-
-    return items;
-  };
+  // 右クリックの品書き。中身の組み立ては札の画面と共通のものを使う。
+  const menu = useContextMenu();
 
   // 狭い画面ではアルバム列を落とす。曲名とアーティストが読めれば足りる。
   const grid = showAlbum
@@ -149,10 +73,17 @@ export function TrackList({
                   onPlay(index);
                 }
               }}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                setMenu({ track, x: event.clientX, y: event.clientY });
-              }}
+              onContextMenu={(event) =>
+                menu.open(
+                  event,
+                  trackMenuItems(track, {
+                    onPlay: () => onPlay(index),
+                    ...(onAddTo ? { onAddTo } : {}),
+                    ...(onRemove ? { onRemove } : {}),
+                    ...(onOpenCollection ? { onOpenCollection } : {}),
+                  }),
+                )
+              }
               className={`row-hover press group grid cursor-pointer items-center gap-4 rounded-md px-2 py-2 text-left transition hover:bg-surface-2 sm:px-4 ${grid}`}
             >
               <div className="relative flex justify-end">
@@ -238,17 +169,7 @@ export function TrackList({
         })}
       </div>
 
-      {menu && (
-        <ContextMenu
-          x={menu.x}
-          y={menu.y}
-          items={menuItems(
-            menu.track,
-            tracks.findIndex((t) => t.id === menu.track.id),
-          )}
-          onClose={() => setMenu(null)}
-        />
-      )}
+      {menu.node}
     </div>
   );
 }

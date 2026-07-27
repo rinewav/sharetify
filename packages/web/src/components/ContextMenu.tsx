@@ -40,7 +40,15 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
   }, [x, y]);
 
   useEffect(() => {
-    const close = () => onClose();
+    /*
+     * 品書きの中を押したときは閉じない。
+     * 押した瞬間に消すと、そのあとの click が届かず選べなくなる。
+     */
+    const close = (event?: Event) => {
+      const target = event?.target;
+      if (target instanceof Node && ref.current?.contains(target)) return;
+      onClose();
+    };
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };

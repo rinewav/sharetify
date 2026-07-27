@@ -12,6 +12,7 @@ import { TrackList } from "../components/TrackList.js";
 import { formatCount } from "../lib/format.js";
 import { nodeCache, nodeCollection, nodeSearch } from "../lib/node-client.js";
 import { usePlayer } from "../lib/player-store.js";
+import { useCollectionMenuItems, useContextMenu } from "../lib/track-menu.js";
 
 interface Props {
   cacheStates: Record<string, CacheState>;
@@ -35,6 +36,10 @@ export function SearchView({ cacheStates, health, onOpenCollection, onAddTo }: P
    */
   const [phase, setPhase] = useState<"idle" | "pending" | "done">("idle");
   const playQueue = usePlayer((s) => s.playQueue);
+
+  // 札の右クリック。曲の一覧は TrackList が自前で持っている。
+  const menu = useContextMenu();
+  const collectionItems = useCollectionMenuItems();
 
   const online = health?.ok === true;
 
@@ -84,6 +89,22 @@ export function SearchView({ cacheStates, health, onOpenCollection, onAddTo }: P
       // 開いて確かめてもらえばよいので、ここでは黙って諦める。
     }
   };
+
+  /** 札に品書きを付ける。開くと流すはこの画面が知っているので、ここで束ねる。 */
+  const cardContext =
+    (kind: CollectionKind, id: string, title: string, artworkUrl?: string) =>
+    (event: React.MouseEvent) =>
+      menu.open(
+        event,
+        collectionItems({
+          kind,
+          id,
+          title,
+          ...(artworkUrl ? { artworkUrl } : {}),
+          onOpen: () => open(kind, id, title),
+          onPlay: () => void playCollection(kind, id),
+        }),
+      );
 
   const { tracks, albums, artists, playlists } = results;
   const nothingFound =
@@ -149,6 +170,7 @@ export function SearchView({ cacheStates, health, onOpenCollection, onAddTo }: P
               round
               onOpen={() => open("artist", artist.id, artist.name)}
               onPlay={() => void playCollection("artist", artist.id)}
+              onContextMenu={cardContext("artist", artist.id, artist.name, artist.artworkUrl)}
             />
           ))}
         </Section>
@@ -190,6 +212,7 @@ export function SearchView({ cacheStates, health, onOpenCollection, onAddTo }: P
               artworkUrl={album.artworkUrl}
               onOpen={() => open("album", album.id, album.title)}
               onPlay={() => void playCollection("album", album.id)}
+              onContextMenu={cardContext("album", album.id, album.title, album.artworkUrl)}
             />
           ))}
         </Section>
@@ -210,10 +233,18 @@ export function SearchView({ cacheStates, health, onOpenCollection, onAddTo }: P
               artworkUrl={playlist.artworkUrl}
               onOpen={() => open("playlist", playlist.id, playlist.title)}
               onPlay={() => void playCollection("playlist", playlist.id)}
+              onContextMenu={cardContext(
+                "playlist",
+                playlist.id,
+                playlist.title,
+                playlist.artworkUrl,
+              )}
             />
           ))}
         </Section>
       )}
+
+      {menu.node}
     </div>
   );
 }
