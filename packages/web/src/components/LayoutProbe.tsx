@@ -9,16 +9,19 @@ import { useEffect, useState } from "react";
  */
 
 interface Metrics {
+  /** 端末が持つ画面の高さ。ここが基準。 */
+  screenHeight: number;
   innerHeight: number;
   visualViewport: number;
-  clientHeight: number;
+  bodyTop: number;
+  bodyBottom: number;
   bodyHeight: number;
-  bodyPaddingTop: string;
   bodyPaddingBottom: string;
   safeTop: string;
   safeBottom: string;
-  /** 一番下の要素の下端から画面下端までの隙間。これが余白の正体。 */
-  gapBelowNav: number | null;
+  navPaddingBottom: string;
+  /** 一番下の要素の下端から画面の下端までの隙間。これが余白の正体。 */
+  gapToScreenBottom: number | null;
   standalone: boolean;
 }
 
@@ -34,17 +37,27 @@ function measure(): Metrics {
 
   const nav = document.querySelector("nav.md\\:hidden") ?? document.querySelector("footer");
   const navRect = nav?.getBoundingClientRect();
+  const bodyRect = document.body.getBoundingClientRect();
+
+  /*
+   * 基準は端末の画面そのものにする。
+   * ブラウザが報告する表示領域は上端の帯を除いた値になることがあり、
+   * それを基準に測ると隙間が見えていても 0 と出てしまう。
+   */
+  const screenHeight = window.screen.height;
 
   return {
+    screenHeight,
     innerHeight: Math.round(window.innerHeight),
     visualViewport: Math.round(window.visualViewport?.height ?? 0),
-    clientHeight: document.documentElement.clientHeight,
-    bodyHeight: Math.round(document.body.getBoundingClientRect().height),
-    bodyPaddingTop: styles.paddingTop,
+    bodyTop: Math.round(bodyRect.top),
+    bodyBottom: Math.round(bodyRect.bottom),
+    bodyHeight: Math.round(bodyRect.height),
     bodyPaddingBottom: styles.paddingBottom,
     safeTop,
     safeBottom,
-    gapBelowNav: navRect ? Math.round(window.innerHeight - navRect.bottom) : null,
+    navPaddingBottom: nav ? getComputedStyle(nav).paddingBottom : "-",
+    gapToScreenBottom: navRect ? Math.round(screenHeight - navRect.bottom) : null,
     standalone:
       window.matchMedia("(display-mode: standalone)").matches ||
       (navigator as { standalone?: boolean }).standalone === true,
