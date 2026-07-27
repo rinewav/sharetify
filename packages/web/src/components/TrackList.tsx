@@ -1,9 +1,11 @@
+import { useRef } from "react";
 import { Clock3, Download, Play, Plus, Volume2, X } from "lucide-react";
 import type { CacheState, CollectionKind, Track } from "@musicshare/shared";
 import { Artwork } from "./Artwork.js";
 import { formatDuration } from "../lib/format.js";
 import { usePlayer } from "../lib/player-store.js";
-import { trackMenuItems, useContextMenu } from "../lib/track-menu.js";
+import { useLongPress } from "../lib/touch.js";
+import { trackMenuItems, type TrackMenuHandlers, useContextMenu } from "../lib/track-menu.js";
 
 interface Props {
   tracks: Track[];
@@ -33,6 +35,24 @@ export function TrackList({
 
   // 右クリックの品書き。中身の組み立ては札の画面と共通のものを使う。
   const menu = useContextMenu();
+
+  /*
+   * 指で押し続けたときも同じ品書きを出す。
+   * 右ボタンの無い端末では、これが唯一の入口になる。
+   */
+  const handlersFor = (track: Track, index: number): TrackMenuHandlers => ({
+    onPlay: () => onPlay(index),
+    ...(onAddTo ? { onAddTo } : {}),
+    ...(onRemove ? { onRemove } : {}),
+    ...(onOpenCollection ? { onOpenCollection } : {}),
+  });
+
+  const pressed = useRef<{ track: Track; index: number } | null>(null);
+  const longPress = useLongPress((x, y) => {
+    const target = pressed.current;
+    if (!target) return;
+    menu.openAt(x, y, trackMenuItems(target.track, handlersFor(target.track, target.index)));
+  });
 
   // 狭い画面ではアルバム列を落とす。曲名とアーティストが読めれば足りる。
   const grid = showAlbum
@@ -74,17 +94,15 @@ export function TrackList({
                 }
               }}
               onContextMenu={(event) =>
-                menu.open(
-                  event,
-                  trackMenuItems(track, {
-                    onPlay: () => onPlay(index),
-                    ...(onAddTo ? { onAddTo } : {}),
-                    ...(onRemove ? { onRemove } : {}),
-                    ...(onOpenCollection ? { onOpenCollection } : {}),
-                  }),
-                )
+                menu.open(event, trackMenuItems(track, handlersFor(track, index)))
               }
-              className={`row-hover press group grid cursor-pointer items-center gap-4 rounded-md px-2 py-2 text-left transition hover:bg-surface-2 sm:px-4 ${grid}`}
+              {...longPress}
+              onTouchStart={(event) => {
+                // どの行を押しているかを控えてから、長押しの計測を始める。
+                pressed.current = { track, index };
+                longPress.onTouchStart(event);
+              }}
+              className={`row-hover press touch-hold group grid cursor-pointer items-center gap-4 rounded-md px-2 py-2 text-left transition hover:bg-surface-2 sm:px-4 ${grid}`}
             >
               <div className="relative flex justify-end">
                 {isCurrent && playing ? (

@@ -85,32 +85,41 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
    * 品書きは中身の並びに属するものではないので、外に出しておく。
    */
   return createPortal(
-    <div
-      ref={ref}
-      role="menu"
-      style={{ left: position.x, top: position.y }}
-      className="animate-pop fixed z-50 w-60 origin-top-left rounded-lg border border-line bg-surface-2 p-1 shadow-2xl"
-    >
-      {items.map((item, index) => (
-        <div key={item.label}>
-          {item.separated && index > 0 && <div className="my-1 h-px bg-line" />}
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              item.onSelect();
-              onClose();
-            }}
-            className={`flex w-full items-center gap-2.5 rounded px-3 py-2 text-left text-sm transition hover:bg-surface-3 ${
-              item.danger ? "text-red-300" : "text-ink"
-            }`}
-          >
-            {item.icon && <span className="shrink-0 text-ink-muted">{item.icon}</span>}
-            {item.label}
-          </button>
-        </div>
-      ))}
-    </div>,
+    <>
+      {/*
+        後ろを少し沈める。
+        指で開いたときは押した場所が指の下に隠れるので、
+        いま何かを選んでいる最中だと分かる手掛かりが要る。
+      */}
+      <div className="animate-fade fixed inset-0 z-40 bg-black/25" aria-hidden />
+      <div
+        ref={ref}
+        role="menu"
+        style={{ left: position.x, top: position.y }}
+        className="animate-pop fixed z-50 w-60 origin-top-left rounded-lg border border-line bg-surface-2 p-1 shadow-2xl"
+      >
+        {items.map((item, index) => (
+          <div key={item.label}>
+            {item.separated && index > 0 && <div className="my-1 h-px bg-line" />}
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                item.onSelect();
+                onClose();
+              }}
+              // 指で押す前提で高さを取る。狭い画面では 44px を下回らないように。
+              className={`touch-hold flex min-h-11 w-full items-center gap-2.5 rounded px-3 py-3 text-left text-sm transition hover:bg-surface-3 active:bg-surface-3 sm:min-h-0 sm:py-2 ${
+                item.danger ? "text-red-300" : "text-ink"
+              }`}
+            >
+              {item.icon && <span className="shrink-0 text-ink-muted">{item.icon}</span>}
+              {item.label}
+            </button>
+          </div>
+        ))}
+      </div>
+    </>,
     document.body,
   );
 }

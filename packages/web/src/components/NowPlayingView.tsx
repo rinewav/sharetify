@@ -17,6 +17,7 @@ import { Artwork } from "./Artwork.js";
 import { LyricsPane } from "./LyricsPane.js";
 import { ProgressBar } from "./ProgressBar.js";
 import { artworkGradient } from "../lib/artwork.js";
+import { useSwipeToDismiss } from "../lib/touch.js";
 import { formatDuration } from "../lib/format.js";
 import { canControl, usePlayer } from "../lib/player-store.js";
 
@@ -39,11 +40,16 @@ export function NowPlayingView({ onClose, onOpenCollection, onOpenQueue }: Props
   const duration = player.durationMs();
   const controllable = canControl(player);
 
+  // 下へ払うと閉じる。指の動きにそのまま付いてくる。
+  const dismiss = useSwipeToDismiss(onClose);
+
   if (!track) return null;
 
   return (
     <div
-      className="animate-cover-up fixed inset-0 z-40 flex flex-col"
+      ref={dismiss.ref}
+      {...dismiss.bind}
+      className="animate-cover-up sheet-drag fixed inset-0 z-40 flex flex-col"
       style={{
         // ジャケットの色を背景に溶かす。曲ごとに雰囲気が変わる。
         background: `linear-gradient(180deg, ${artworkGradient(track.id)
@@ -52,7 +58,12 @@ export function NowPlayingView({ onClose, onOpenCollection, onOpenQueue }: Props
           ?.trim()} -30%, var(--color-base) 55%)`,
       }}
     >
-      <header className="pad-top-safe flex items-center justify-between px-4 py-3 sm:px-6">
+      {/* 下へ払えることを示す取っ手。触れる場所が見えると迷わない。 */}
+      <div className="pad-top-safe flex justify-center pt-2 md:hidden">
+        <span className="h-1 w-10 rounded-full bg-ink/25" />
+      </div>
+
+      <header className="flex items-center justify-between px-4 py-3 sm:px-6 md:pad-top-safe">
         <button
           type="button"
           onClick={onClose}

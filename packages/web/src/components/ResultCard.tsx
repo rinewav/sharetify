@@ -1,5 +1,7 @@
 import { Play } from "lucide-react";
 import { Artwork } from "./Artwork.js";
+import type { MenuItem } from "./ContextMenu.js";
+import { PressableCard } from "./PressableCard.js";
 
 interface Props {
   seed: string;
@@ -10,7 +12,9 @@ interface Props {
   round?: boolean;
   onOpen: () => void;
   onPlay?: () => void;
-  onContextMenu?: (event: React.MouseEvent) => void;
+  /** 右ボタンでも指で押し続けても出す品書き。 */
+  menuItems?: () => MenuItem[];
+  onOpenMenu?: (x: number, y: number, items: MenuItem[]) => void;
 }
 
 /** 検索結果の「開けるもの」を並べるための札。 */
@@ -22,13 +26,14 @@ export function ResultCard({
   round = false,
   onOpen,
   onPlay,
-  onContextMenu,
+  menuItems,
+  onOpenMenu,
 }: Props) {
   return (
-    <button
-      type="button"
+    <PressableCard
       onClick={onOpen}
-      onContextMenu={onContextMenu}
+      {...(menuItems ? { menuItems } : {})}
+      {...(onOpenMenu ? { onOpenMenu } : {})}
       className="press group relative min-w-0 rounded-lg bg-surface p-3 text-left transition hover:bg-surface-3 sm:p-4"
     >
       <div className="relative">
@@ -53,6 +58,6 @@ export function ResultCard({
       </div>
       <div className="mt-3 truncate text-sm font-semibold">{title}</div>
       {subtitle && <div className="mt-1 truncate text-xs text-ink-muted">{subtitle}</div>}
-    </button>
+    </PressableCard>
   );
 }

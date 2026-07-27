@@ -32,13 +32,22 @@ interface OpenState {
 export function useContextMenu() {
   const [state, setState] = useState<OpenState | null>(null);
 
-  const open = useCallback((event: React.MouseEvent, items: MenuItem[]) => {
+  /** 位置だけで開く。指で長く押したときに使う。 */
+  const openAt = useCallback((x: number, y: number, items: MenuItem[]) => {
     if (items.length === 0) return;
-    event.preventDefault();
-    // 入れ子になっている所では、外側の品書きまで開いてしまわないように止める。
-    event.stopPropagation();
-    setState({ x: event.clientX, y: event.clientY, items });
+    setState({ x, y, items });
   }, []);
+
+  const open = useCallback(
+    (event: React.MouseEvent, items: MenuItem[]) => {
+      if (items.length === 0) return;
+      event.preventDefault();
+      // 入れ子になっている所では、外側の品書きまで開いてしまわないように止める。
+      event.stopPropagation();
+      openAt(event.clientX, event.clientY, items);
+    },
+    [openAt],
+  );
 
   const close = useCallback(() => setState(null), []);
 
@@ -46,7 +55,7 @@ export function useContextMenu() {
     <ContextMenu x={state.x} y={state.y} items={state.items} onClose={close} />
   ) : null;
 
-  return { open, node, close };
+  return { open, openAt, node, close };
 }
 
 export interface TrackMenuHandlers {

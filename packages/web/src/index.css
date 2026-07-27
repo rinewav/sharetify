@@ -68,6 +68,32 @@ body {
 }
 
 /*
+ * 押し続けて品書きを出すもの。
+ *
+ * 指しかない端末では、押し続けることが右ボタンの代わりになる。
+ * そのままだと閲覧環境が先に割り込んで、字が選ばれたり
+ * 「コピー」の吹き出しが出たりして、こちらの品書きに届かない。
+ * 二重に反応しないよう、押している間の見た目もこちらで持つ。
+ */
+@utility touch-hold {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  /* 二度押しの拡大を待つ 300ms を無くす。押した感じが遅れない。 */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/*
+ * 覆いかぶさるものは、下へ払って閉じられる。
+ * 指で動かしている間は追従を切り、離してから滑らかに収める。
+ */
+@utility sheet-drag {
+  touch-action: pan-y;
+  will-change: transform;
+}
+
+/*
  * 画面の縁を避けるための余白。
  *
  * ホーム画面から起動したときの描ける範囲は、実測では画面 844 に対し 797。

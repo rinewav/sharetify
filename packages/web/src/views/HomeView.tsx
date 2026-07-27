@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { ListMusic, Play, Search, Sparkles } from "lucide-react";
 import type { CollectionKind, DiscoverSection, Track } from "@musicshare/shared";
 import { Artwork } from "../components/Artwork.js";
+import type { MenuItem } from "../components/ContextMenu.js";
+import { PressableCard } from "../components/PressableCard.js";
 import { formatCount } from "../lib/format.js";
 import { useLibrary } from "../lib/library-store.js";
 import { nodeCollection, nodeDiscover, nodeRadio } from "../lib/node-client.js";
@@ -65,8 +67,8 @@ export function HomeView({ onNavigate, nodeOnline, onAddTo }: Props) {
     onNavigate({ name: "collection", kind, id, title });
 
   /** 曲の札に品書きを付ける。押した場から鳴らせるよう、再生の仕方も受け取る。 */
-  const trackContext = (track: Track, onPlay: () => void) => (event: React.MouseEvent) =>
-    menu.open(event, trackMenuItems(track, { onPlay, onAddTo, onOpenCollection: openCollection }));
+  const trackMenu = (track: Track, onPlay: () => void) => () =>
+    trackMenuItems(track, { onPlay, onAddTo, onOpenCollection: openCollection });
 
   /** まとまりを開かずにその場で流す。中身は必要になってから取りにいく。 */
   const playCollection = async (kind: CollectionKind, id: string) => {
@@ -78,11 +80,8 @@ export function HomeView({ onNavigate, nodeOnline, onAddTo }: Props) {
     }
   };
 
-  const collectionContext = (target: CollectionMenuTarget) => (event: React.MouseEvent) =>
-    menu.open(
-      event,
-      collectionItems({ onPlay: () => void playCollection(target.kind, target.id), ...target }),
-    );
+  const collectionMenu = (target: CollectionMenuTarget) => () =>
+    collectionItems({ onPlay: () => void playCollection(target.kind, target.id), ...target });
 
   return (
     <div className="px-4 pt-20 pb-8 sm:px-6">
@@ -113,30 +112,28 @@ export function HomeView({ onNavigate, nodeOnline, onAddTo }: Props) {
       {recentPlaylists.length > 0 && (
         <div className="animate-rise mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {recentPlaylists.slice(0, 6).map((playlist) => (
-            <button
+            <PressableCard
               key={playlist.id}
-              type="button"
               onClick={() => onNavigate({ name: "playlist", playlistId: playlist.id })}
-              onContextMenu={(event) =>
-                menu.open(event, [
-                  ...(playlist.tracks.length > 0
-                    ? [
-                        {
-                          label: "再生",
-                          icon: <Play className="size-4" />,
-                          onSelect: () => playQueue(playlist.tracks, 0),
-                        },
-                      ]
-                    : []),
-                  {
-                    label: "プレイリストを開く",
-                    icon: <ListMusic className="size-4" />,
-                    onSelect: () => onNavigate({ name: "playlist", playlistId: playlist.id }),
-                    separated: playlist.tracks.length > 0,
-                  },
-                ])
-              }
-              className="press group flex items-center gap-3 overflow-hidden rounded-md bg-surface-2 pr-3 text-left transition hover:bg-surface-3"
+              menuItems={() => [
+                ...(playlist.tracks.length > 0
+                  ? [
+                      {
+                        label: "再生",
+                        icon: <Play className="size-4" />,
+                        onSelect: () => playQueue(playlist.tracks, 0),
+                      },
+                    ]
+                  : []),
+                {
+                  label: "プレイリストを開く",
+                  icon: <ListMusic className="size-4" />,
+                  onSelect: () => onNavigate({ name: "playlist", playlistId: playlist.id }),
+                  separated: playlist.tracks.length > 0,
+                },
+              ]}
+              onOpenMenu={menu.openAt}
+              className="press group flex w-full items-center gap-3 overflow-hidden rounded-md bg-surface-2 pr-3 text-left transition hover:bg-surface-3"
             >
               <Artwork
                 seed={playlist.id}
@@ -159,7 +156,7 @@ export function HomeView({ onNavigate, nodeOnline, onAddTo }: Props) {
                   <Play className="size-4 translate-x-px fill-current" />
                 </span>
               )}
-            </button>
+            </PressableCard>
           ))}
         </div>
       )}
@@ -168,7 +165,8 @@ export function HomeView({ onNavigate, nodeOnline, onAddTo }: Props) {
         title="もう一度聴く"
         tracks={recent}
         onPlayAll={playQueue}
-        onContextMenu={trackContext}
+        onMenu={trackMenu}
+        onOpenMenu={menu.openAt}
       />
 
       {mixes.map((mix) => (
@@ -178,7 +176,8 @@ export function HomeView({ onNavigate, nodeOnline, onAddTo }: Props) {
           hint="聴いた跡から選んだ種"
           tracks={mix.tracks}
           onPlayAll={playQueue}
-          onContextMenu={trackContext}
+          onMenu={trackMenu}
+        onOpenMenu={menu.openAt}
         />
       ))}
 
@@ -186,7 +185,8 @@ export function HomeView({ onNavigate, nodeOnline, onAddTo }: Props) {
         follows={follows}
         nodeOnline={nodeOnline}
         onNavigate={onNavigate}
-        onContextMenu={collectionContext}
+        onMenu={collectionMenu}
+        onOpenMenu={menu.openAt}
       />
 
       <TrackSection
@@ -194,7 +194,8 @@ export function HomeView({ onNavigate, nodeOnline, onAddTo }: Props) {
         hint="よく聴いていたが、しばらく開いていないもの"
         tracks={forgotten}
         onPlayAll={playQueue}
-        onContextMenu={trackContext}
+        onMenu={trackMenu}
+        onOpenMenu={menu.openAt}
       />
 
       <TrackSection
@@ -202,7 +203,8 @@ export function HomeView({ onNavigate, nodeOnline, onAddTo }: Props) {
         hint="長めの一本"
         tracks={longOnes}
         onPlayAll={playQueue}
-        onContextMenu={trackContext}
+        onMenu={trackMenu}
+        onOpenMenu={menu.openAt}
       />
 
       {recap && <RecapCard recap={recap} onOpenArtist={openArtist} onPlayAll={playQueue} />}
@@ -218,13 +220,14 @@ export function HomeView({ onNavigate, nodeOnline, onAddTo }: Props) {
               artworkUrl={artist.artworkUrl}
               round
               onClick={() => openArtist(artist.id, artist.name)}
-              onContextMenu={collectionContext({
+              menuItems={collectionMenu({
                 kind: "artist",
                 id: artist.id,
                 title: artist.name,
                 ...(artist.artworkUrl ? { artworkUrl: artist.artworkUrl } : {}),
                 onOpen: () => openArtist(artist.id, artist.name),
               })}
+              onOpenMenu={menu.openAt}
             />
           ))}
         </Section>
@@ -244,7 +247,8 @@ export function HomeView({ onNavigate, nodeOnline, onAddTo }: Props) {
                 artworkUrl={item.track.artworkUrl}
                 onClick={() => playQueue([item.track], 0)}
                 onPlay={() => playQueue([item.track], 0)}
-                onContextMenu={trackContext(item.track, () => playQueue([item.track], 0))}
+                menuItems={trackMenu(item.track, () => playQueue([item.track], 0))}
+                onOpenMenu={menu.openAt}
               />
             ) : (
               <Card
@@ -260,7 +264,7 @@ export function HomeView({ onNavigate, nodeOnline, onAddTo }: Props) {
                     item.title,
                   )
                 }
-                onContextMenu={collectionContext({
+                menuItems={collectionMenu({
                   kind: item.type === "album" ? "album" : "playlist",
                   id: item.id,
                   title: item.title,
@@ -272,6 +276,7 @@ export function HomeView({ onNavigate, nodeOnline, onAddTo }: Props) {
                       item.title,
                     ),
                 })}
+                onOpenMenu={menu.openAt}
               />
             ),
           )}
@@ -290,13 +295,15 @@ function TrackSection({
   hint,
   tracks,
   onPlayAll,
-  onContextMenu,
+  onMenu,
+  onOpenMenu,
 }: {
   title: string;
   hint?: string;
   tracks: Track[];
   onPlayAll: (tracks: Track[], index: number) => void;
-  onContextMenu: (track: Track, onPlay: () => void) => (event: React.MouseEvent) => void;
+  onMenu: (track: Track, onPlay: () => void) => () => MenuItem[];
+  onOpenMenu: (x: number, y: number, items: MenuItem[]) => void;
 }) {
   if (tracks.length === 0) return null;
   return (
@@ -324,7 +331,8 @@ function TrackSection({
             artworkUrl={track.artworkUrl}
             onClick={() => onPlayAll(tracks, index)}
             onPlay={() => onPlayAll(tracks, index)}
-            onContextMenu={onContextMenu(track, () => onPlayAll(tracks, index))}
+            menuItems={onMenu(track, () => onPlayAll(tracks, index))}
+            onOpenMenu={onOpenMenu}
           />
         ))}
       </div>
@@ -399,12 +407,14 @@ function NewReleases({
   follows,
   nodeOnline,
   onNavigate,
-  onContextMenu,
+  onMenu,
+  onOpenMenu,
 }: {
   follows: { id: string; name: string }[];
   nodeOnline: boolean;
   onNavigate: (route: Route) => void;
-  onContextMenu: (target: CollectionMenuTarget) => (event: React.MouseEvent) => void;
+  onMenu: (target: CollectionMenuTarget) => () => MenuItem[];
+  onOpenMenu: (x: number, y: number, items: MenuItem[]) => void;
 }) {
   const releases = useFollowedReleases(follows, nodeOnline);
   if (releases.length === 0) return null;
@@ -427,13 +437,14 @@ function NewReleases({
             subtitle={[release.artist, release.year].filter(Boolean).join(" · ")}
             artworkUrl={release.artworkUrl}
             onClick={open}
-            onContextMenu={onContextMenu({
+            menuItems={onMenu({
               kind: "album",
               id: release.id,
               title: release.title,
               ...(release.artworkUrl ? { artworkUrl: release.artworkUrl } : {}),
               onOpen: open,
             })}
+            onOpenMenu={onOpenMenu}
           />
         );
       })}
@@ -460,7 +471,8 @@ function Card({
   round = false,
   onClick,
   onPlay,
-  onContextMenu,
+  menuItems,
+  onOpenMenu,
 }: {
   seed: string;
   title: string;
@@ -469,13 +481,14 @@ function Card({
   round?: boolean;
   onClick: () => void;
   onPlay?: () => void;
-  onContextMenu?: (event: React.MouseEvent) => void;
+  menuItems?: () => MenuItem[];
+  onOpenMenu?: (x: number, y: number, items: MenuItem[]) => void;
 }) {
   return (
-    <button
-      type="button"
+    <PressableCard
       onClick={onClick}
-      onContextMenu={onContextMenu}
+      {...(menuItems ? { menuItems } : {})}
+      {...(onOpenMenu ? { onOpenMenu } : {})}
       className="press group relative min-w-0 rounded-lg bg-surface p-3 text-left transition hover:bg-surface-3 sm:p-4"
     >
       <div className="relative">
@@ -500,7 +513,7 @@ function Card({
       </div>
       <div className="mt-3 truncate text-sm font-semibold">{title}</div>
       <div className="mt-1 truncate text-xs text-ink-muted">{subtitle}</div>
-    </button>
+    </PressableCard>
   );
 }
 

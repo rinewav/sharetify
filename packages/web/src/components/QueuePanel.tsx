@@ -2,6 +2,7 @@ import { ListMusic, Volume2, X } from "lucide-react";
 import { Artwork } from "./Artwork.js";
 import { formatDuration } from "../lib/format.js";
 import { usePlayer } from "../lib/player-store.js";
+import { useSwipeToDismiss } from "../lib/touch.js";
 
 interface Props {
   onClose: () => void;
@@ -14,15 +15,25 @@ export function QueuePanel({ onClose, fullWidth = false }: Props) {
   const index = usePlayer((s) => s.index);
   const playing = usePlayer((s) => s.playing);
   const playQueue = usePlayer((s) => s.playQueue);
+  // 覆いかぶさっているときは、下へ払って閉じられる。
+  const dismiss = useSwipeToDismiss(onClose);
 
   const upcoming = queue.slice(index + 1);
 
   return (
     <aside
+      ref={fullWidth ? dismiss.ref : undefined}
+      {...(fullWidth ? dismiss.bind : {})}
       className={`flex h-full shrink-0 flex-col rounded-lg bg-surface ${
-        fullWidth ? "w-full" : "w-[320px]"
+        fullWidth ? "sheet-drag w-full" : "w-[320px]"
       }`}
     >
+      {/* 覆いかぶさっているときは、下へ払って閉じられる。 */}
+      {fullWidth && (
+        <div className="flex justify-center pt-2">
+          <span className="h-1 w-10 rounded-full bg-ink/20" />
+        </div>
+      )}
       <header className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2">
           <ListMusic className="size-4 text-ink-muted" />

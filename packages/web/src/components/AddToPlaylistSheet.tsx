@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Check, Plus, Users, X } from "lucide-react";
 import type { Track } from "@musicshare/shared";
 import { Artwork } from "./Artwork.js";
+import { Sheet } from "./Sheet.js";
 import { useLibrary } from "../lib/library-store.js";
 
 interface Props {
@@ -31,8 +32,7 @@ export function AddToPlaylistSheet({ track, onClose }: Props) {
   };
 
   return (
-    <div className="animate-fade fixed inset-0 z-30 flex items-end justify-center bg-black/70 p-3 sm:items-center">
-      <div className="animate-slide-up flex max-h-[70vh] w-full max-w-sm flex-col rounded-2xl bg-surface p-5 shadow-2xl">
+    <Sheet onClose={onClose} className="max-h-[70vh] max-w-sm">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h2 className="text-lg font-bold">プレイリストに追加</h2>
@@ -112,7 +112,6 @@ export function AddToPlaylistSheet({ track, onClose }: Props) {
             新しいプレイリストを作る
           </button>
         )}
-      </div>
-    </div>
+    </Sheet>
   );
 }

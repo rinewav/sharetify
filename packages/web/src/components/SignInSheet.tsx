@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Loader2, X } from "lucide-react";
+import { Sheet } from "./Sheet.js";
 import { useLibrary } from "../lib/library-store.js";
 
 interface Props {
@@ -26,8 +27,7 @@ export function SignInSheet({ onClose, dismissible = true }: Props) {
   };
 
   return (
-    <div className="animate-fade fixed inset-0 z-30 flex items-end justify-center bg-black/70 p-3 sm:items-center">
-      <div className="animate-slide-up w-full max-w-sm rounded-2xl bg-surface p-5 shadow-2xl">
+    <Sheet onClose={onClose} dismissible={dismissible} className="max-w-sm">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-bold">名前を決める</h2>
@@ -67,7 +67,6 @@ export function SignInSheet({ onClose, dismissible = true }: Props) {
           {loading && <Loader2 className="size-4 animate-spin" />}
           はじめる
         </button>
-      </div>
-    </div>
+    </Sheet>
   );
 }

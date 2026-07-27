@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Laptop, Loader2, X } from "lucide-react";
 import { PAIR_CODE_LENGTH } from "@musicshare/shared";
+import { Sheet } from "./Sheet.js";
 import { peerClient, type PeerStatus } from "../lib/peer-client.js";
 
 const STORED_CODE_KEY = "musicshare.pair-code";
@@ -41,8 +42,7 @@ export function PairingSheet({ onClose }: Props) {
   const connected = status === "connected";
 
   return (
-    <div className="animate-fade fixed inset-0 z-30 flex items-end justify-center bg-black/60 p-3 sm:items-center">
-      <div className="animate-slide-up w-full max-w-sm rounded-2xl bg-surface p-5 shadow-2xl">
+    <Sheet onClose={onClose} className="max-w-sm">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-bold">自分の PC につなぐ</h2>
@@ -90,8 +90,7 @@ export function PairingSheet({ onClose }: Props) {
           つないだあとは、この端末と PC が直接やり取りします。
           曲のデータが運営側のサーバーを通ることはありません。
         </p>
-      </div>
-    </div>
+    </Sheet>
   );
 }
 
