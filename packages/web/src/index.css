@@ -24,33 +24,36 @@
 }
 
 html,
-body,
 #root {
   height: 100%;
 }
 
 /*
- * ページ自体は動かさない。
+ * 画面の縁の扱いは、この 1 箇所だけで行う。
  *
- * スマートフォンでは、内側の一覧をスクロールしたつもりがページごと持ち上がって
- * 上下の固定要素まで一緒に流れてしまう。body を画面に固定してしまえば、
- * スクロールするのは中の領域だけになる。
+ * ノッチやホームバーを避ける余白を複数の要素で足すと、
+ * 端末によっては二重にかかって下に黒い帯が残る。
+ * ここで内側に寄せてしまえば、中の要素は縁を意識しなくてよくなる。
+ *
+ * 高さは動的ビューポートで取る。位置固定と併用すると、
+ * 環境によって基準が食い違って隙間の元になるので使わない。
+ * ページ自体を動かさないのは overflow で足りる。
  */
 body {
-  position: fixed;
-  inset: 0;
   margin: 0;
+  height: 100vh; /* 動的ビューポート未対応の環境向け */
+  height: 100dvh;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
   background: var(--color-base);
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
-  /*
-   * 高さは inset: 0 に任せる。
-   * ここで 100dvh を重ねると、そちらが優先されて下端の指定が効かなくなる。
-   * ホーム画面から起動したときの dvh は画面いっぱいより小さく出ることがあり、
-   * 差分がそのまま下の余白になっていた。
-   */
 }
 
 /* 内側でスクロールする領域は、慣性が親に伝わらないようにする。 */

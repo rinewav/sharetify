@@ -1,0 +1,88 @@
+- generic [ref=f18e3]:
+  - main [ref=f18e5]:
+    - generic [ref=f18e7]:
+      - button "自分の PC に接続できていません。タップしてつなぐ" [ref=f18e8]
+      - generic [ref=f18e16]: り
+    - generic [ref=f18e18]:
+      - heading "こんにちは" [level=1] [ref=f18e19]
+      - generic [ref=f18e20]:
+        - button "夜に効くやつ" [ref=f18e21]:
+          - generic [ref=f18e22]: 夜
+        - button "みんなの棚" [ref=f18e28]:
+          - generic [ref=f18e29]: み
+        - button "リファレンス / ミックス" [ref=f18e35]:
+          - generic [ref=f18e36]: リ
+        - button "散歩" [ref=f18e42]:
+          - generic [ref=f18e43]: 散
+        - button "最近見つけたもの" [ref=f18e49]:
+          - generic [ref=f18e50]: 最
+      - generic [ref=f18e56]:
+        - heading "最近聴いたもの" [level=2] [ref=f18e57]
+        - generic [ref=f18e58]:
+          - button "夜に効くやつ 作業中にずっと流している" [ref=f18e59]:
+            - generic [ref=f18e60]: 夜
+            - generic [ref=f18e66]: 夜に効くやつ
+            - generic [ref=f18e67]: 作業中にずっと流している
+          - button "みんなの棚 深夜の作業部屋の共有プレイリスト" [ref=f18e68]:
+            - generic [ref=f18e69]: み
+            - generic [ref=f18e75]: みんなの棚
+            - generic [ref=f18e76]: 深夜の作業部屋の共有プレイリスト
+          - button "リファレンス / ミックス 音作りの参照用" [ref=f18e77]:
+            - generic [ref=f18e78]: リ
+            - generic [ref=f18e84]: リファレンス / ミックス
+            - generic [ref=f18e85]: 音作りの参照用
+          - button "散歩 4 曲" [ref=f18e86]:
+            - generic [ref=f18e87]: 散
+            - generic [ref=f18e93]: 散歩
+            - generic [ref=f18e94]: 4 曲
+          - button "最近見つけたもの 3 曲" [ref=f18e95]:
+            - generic [ref=f18e96]: 最
+            - generic [ref=f18e102]: 最近見つけたもの
+            - generic [ref=f18e103]: 3 曲
+      - generic [ref=f18e104]:
+        - heading "よく聴くアーティスト" [level=2] [ref=f18e105]
+        - generic [ref=f18e106]:
+          - button "Aoi Tsuzuki アーティスト" [ref=f18e107]:
+            - generic [ref=f18e108]: A
+            - generic [ref=f18e114]: Aoi Tsuzuki
+            - generic [ref=f18e115]: アーティスト
+          - button "Hollow Field アーティスト" [ref=f18e116]:
+            - generic [ref=f18e117]: H
+            - generic [ref=f18e123]: Hollow Field
+            - generic [ref=f18e124]: アーティスト
+          - button "Neon Pastoral アーティスト" [ref=f18e125]:
+            - generic [ref=f18e126]: "N"
+            - generic [ref=f18e132]: Neon Pastoral
+            - generic [ref=f18e133]: アーティスト
+          - button "Marina Vex アーティスト" [ref=f18e134]:
+            - generic [ref=f18e135]: M
+            - generic [ref=f18e141]: Marina Vex
+            - generic [ref=f18e142]: アーティスト
+          - button "The Long Commute アーティスト" [ref=f18e143]:
+            - generic [ref=f18e144]: T
+            - generic [ref=f18e150]: The Long Commute
+            - generic [ref=f18e151]: アーティスト
+          - button "Kite Season アーティスト" [ref=f18e152]:
+            - generic [ref=f18e153]: K
+            - generic [ref=f18e159]: Kite Season
+            - generic [ref=f18e160]: アーティスト
+  - contentinfo [ref=f18e161]:
+    - generic [ref=f18e162]: 再生していません
+    - generic [ref=f18e164]:
+      - slider
+  - navigation [ref=f18e165]:
+    - button "ホーム" [ref=f18e166]
+    - button "検索" [ref=f18e170]
+    - button "グループ" [ref=f18e174]
+    - button "一緒に" [ref=f18e177]
+  - generic:
+    - generic: "innerHeight: 844"
+    - generic: "visualViewport: 844"
+    - generic: "clientHeight: 844"
+    - generic: "bodyHeight: 844"
+    - generic: "bodyPaddingTop: 0px"
+    - generic: "bodyPaddingBottom: 0px"
+    - generic: "safeTop: 0px"
+    - generic: "safeBottom: 0px"
+    - generic: "gapBelowNav: 0"
+    - generic: "standalone: false"

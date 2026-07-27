@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ChevronLeft, ChevronRight, Wifi, WifiOff } from "lucide-react";
 import type { CacheState, NodeHealth } from "@musicshare/shared";
+import { LayoutProbe, layoutProbeEnabled } from "./components/LayoutProbe.js";
 import { MobileNav } from "./components/MobileNav.js";
 import { PairingSheet, useAutoPairing } from "./components/PairingSheet.js";
 import { PlayerBar } from "./components/PlayerBar.js";
@@ -85,8 +86,8 @@ export default function App() {
   }, [route, health, cacheStates]);
 
   return (
-    // 上端は端末のノッチ分を空ける。空けないと戻る操作が時計に潜り込む。
-    <div className="flex h-full flex-col bg-base pt-[env(safe-area-inset-top)]">
+    // 画面の縁を避ける余白は body が持っている。ここでは足さない。
+    <div className="flex h-full flex-col bg-base">
       <div className="flex min-h-0 flex-1 gap-2 p-2">
         <div className="hidden md:block">
           <Sidebar
@@ -182,6 +183,7 @@ export default function App() {
       />
 
       {pairingOpen && <PairingSheet onClose={() => setPairingOpen(false)} />}
+      {layoutProbeEnabled() && <LayoutProbe />}
     </div>
   );
 }
