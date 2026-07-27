@@ -3,6 +3,7 @@ import { ListMusic, Play, Search, Sparkles } from "lucide-react";
 import type { CollectionKind, DiscoverSection, Track } from "@sharetify/shared";
 import { Artwork } from "../components/Artwork.js";
 import type { MenuItem } from "../components/ContextMenu.js";
+import { LinkedName } from "../components/LinkedName.js";
 import { PressableCard } from "../components/PressableCard.js";
 import { formatCount } from "../lib/format.js";
 import { useLibrary } from "../lib/library-store.js";
@@ -175,6 +176,7 @@ export function HomeView({ onNavigate, nodeOnline, onAddTo }: Props) {
         onPlayAll={playQueue}
         onMenu={trackMenu}
         onOpenMenu={menu.openAt}
+        onOpenArtist={openArtist}
       />
 
       {mixes.map((mix) => (
@@ -185,7 +187,8 @@ export function HomeView({ onNavigate, nodeOnline, onAddTo }: Props) {
           tracks={mix.tracks}
           onPlayAll={playQueue}
           onMenu={trackMenu}
-        onOpenMenu={menu.openAt}
+          onOpenMenu={menu.openAt}
+          onOpenArtist={openArtist}
         />
       ))}
 
@@ -204,6 +207,7 @@ export function HomeView({ onNavigate, nodeOnline, onAddTo }: Props) {
         onPlayAll={playQueue}
         onMenu={trackMenu}
         onOpenMenu={menu.openAt}
+        onOpenArtist={openArtist}
       />
 
       <TrackSection
@@ -213,6 +217,7 @@ export function HomeView({ onNavigate, nodeOnline, onAddTo }: Props) {
         onPlayAll={playQueue}
         onMenu={trackMenu}
         onOpenMenu={menu.openAt}
+        onOpenArtist={openArtist}
       />
 
       {recap && <RecapCard recap={recap} onOpenArtist={openArtist} onPlayAll={playQueue} />}
@@ -255,6 +260,12 @@ export function HomeView({ onNavigate, nodeOnline, onAddTo }: Props) {
                 artworkUrl={item.track.artworkUrl}
                 onClick={() => playQueue([item.track], 0)}
                 onPlay={() => playQueue([item.track], 0)}
+                {...(item.track.artistId
+                  ? {
+                      onOpenSubtitle: () =>
+                        openArtist(item.track.artistId!, item.track.artist),
+                    }
+                  : {})}
                 menuItems={trackMenu(item.track, () => playQueue([item.track], 0))}
                 onOpenMenu={menu.openAt}
               />
@@ -305,6 +316,7 @@ function TrackSection({
   onPlayAll,
   onMenu,
   onOpenMenu,
+  onOpenArtist,
 }: {
   title: string;
   hint?: string;
@@ -312,6 +324,8 @@ function TrackSection({
   onPlayAll: (tracks: Track[], index: number) => void;
   onMenu: (track: Track, onPlay: () => void) => () => MenuItem[];
   onOpenMenu: (x: number, y: number, items: MenuItem[]) => void;
+  /** 副題の演奏者を押したときの行き先。識別子が無い曲では出さない。 */
+  onOpenArtist?: (id: string, name: string) => void;
 }) {
   if (tracks.length === 0) return null;
   return (
@@ -339,6 +353,9 @@ function TrackSection({
             artworkUrl={track.artworkUrl}
             onClick={() => onPlayAll(tracks, index)}
             onPlay={() => onPlayAll(tracks, index)}
+            {...(track.artistId && onOpenArtist
+              ? { onOpenSubtitle: () => onOpenArtist(track.artistId!, track.artist) }
+              : {})}
             menuItems={onMenu(track, () => onPlayAll(tracks, index))}
             onOpenMenu={onOpenMenu}
           />
@@ -479,6 +496,7 @@ function Card({
   round = false,
   onClick,
   onPlay,
+  onOpenSubtitle,
   menuItems,
   onOpenMenu,
 }: {
@@ -489,6 +507,13 @@ function Card({
   round?: boolean;
   onClick: () => void;
   onPlay?: () => void;
+  /**
+   * 副題の演奏者を押したときの行き先。
+   *
+   * 札そのものを押せば曲が鳴るが、名前を見て
+   * 「この人の他の曲」へ行きたくなることがある。
+   */
+  onOpenSubtitle?: () => void;
   menuItems?: () => MenuItem[];
   onOpenMenu?: (x: number, y: number, items: MenuItem[]) => void;
 }) {
@@ -520,7 +545,9 @@ function Card({
         )}
       </div>
       <div className="mt-3 truncate text-sm font-semibold">{title}</div>
-      <div className="mt-1 truncate text-xs text-ink-muted">{subtitle}</div>
+      <div className="mt-1 truncate text-xs text-ink-muted">
+        <LinkedName label={subtitle} {...(onOpenSubtitle ? { onOpen: onOpenSubtitle } : {})} />
+      </div>
     </PressableCard>
   );
 }

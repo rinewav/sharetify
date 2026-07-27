@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { Clock3, Download, Play, Plus, Volume2, X } from "lucide-react";
 import type { CacheState, CollectionKind, Track } from "@sharetify/shared";
 import { Artwork } from "./Artwork.js";
+import { LinkedName } from "./LinkedName.js";
 import { formatDuration } from "../lib/format.js";
 import { usePlayer } from "../lib/player-store.js";
 import { useLongPress } from "../lib/touch.js";
@@ -229,29 +230,6 @@ function RowAction({
  * 移動先がある名前は押せるようにする。
  * 行の再生と取り違えないよう、ここで伝播を止める。
  */
-function LinkedName({ label, onOpen }: { label: string; onOpen?: () => void }) {
-  if (!onOpen) return <>{label}</>;
-  return (
-    <span
-      role="link"
-      tabIndex={0}
-      onClick={(event) => {
-        event.stopPropagation();
-        onOpen();
-      }}
-      onKeyDown={(event) => {
-        if (event.key !== "Enter") return;
-        event.stopPropagation();
-        event.preventDefault();
-        onOpen();
-      }}
-      className="cursor-pointer hover:text-ink hover:underline"
-    >
-      {label}
-    </span>
-  );
-}
-
 /**
  * オフライン状態のバッジ。
  *

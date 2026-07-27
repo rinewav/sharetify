@@ -1,5 +1,6 @@
 import { Play } from "lucide-react";
 import { Artwork } from "./Artwork.js";
+import { LinkedName } from "./LinkedName.js";
 import type { MenuItem } from "./ContextMenu.js";
 import { PressableCard } from "./PressableCard.js";
 
@@ -12,6 +13,13 @@ interface Props {
   round?: boolean;
   onOpen: () => void;
   onPlay?: () => void;
+  /**
+   * 副題の演奏者を押したときの行き先。
+   *
+   * 札そのものを押すと曲が鳴るが、名前を見て「この人の他の曲」へ
+   * 行きたくなることがある。名前だけは別の行き先にしておく。
+   */
+  onOpenSubtitle?: () => void;
   /** 右ボタンでも指で押し続けても出す品書き。 */
   menuItems?: () => MenuItem[];
   onOpenMenu?: (x: number, y: number, items: MenuItem[]) => void;
@@ -26,6 +34,7 @@ export function ResultCard({
   round = false,
   onOpen,
   onPlay,
+  onOpenSubtitle,
   menuItems,
   onOpenMenu,
 }: Props) {
@@ -57,7 +66,11 @@ export function ResultCard({
         )}
       </div>
       <div className="mt-3 truncate text-sm font-semibold">{title}</div>
-      {subtitle && <div className="mt-1 truncate text-xs text-ink-muted">{subtitle}</div>}
+      {subtitle && (
+        <div className="mt-1 truncate text-xs text-ink-muted">
+          <LinkedName label={subtitle} {...(onOpenSubtitle ? { onOpen: onOpenSubtitle } : {})} />
+        </div>
+      )}
     </PressableCard>
   );
 }

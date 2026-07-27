@@ -45,6 +45,12 @@ _COUNT_WORD = re.compile(
 # 数え上げには必ず数が付く。単位だけの言葉は数え上げではない。
 _HAS_COUNT = re.compile(r"[\d０-９]")
 
+# 出した年。副題に添えられるが、演奏者ではない。
+#
+# 「年」を伴う形だけを落とす。裸の四桁も年に見えるが、
+# The 1975 のように数字そのものを名に持つ演奏者がいるので手を出さない。
+_YEAR = re.compile(r"^[\d０-９]{4}\s*年$")
+
 
 def _is_count_text(name: str) -> bool:
     """
@@ -56,12 +62,17 @@ def _is_count_text(name: str) -> bool:
     return bool(_COUNT_WORD.search(name)) and bool(_HAS_COUNT.search(name))
 
 
+def _is_meta_text(name: str) -> bool:
+    """演奏者の欄に紛れ込む、演奏者でないもの。数え上げと、出した年。"""
+    return _is_count_text(name) or bool(_YEAR.match(name.strip()))
+
+
 def join_artists(entry: dict) -> str:
     names = [
         name
         for artist in entry.get("artists") or []
         # 識別子があるものは確実に演奏者。無いものだけ中身を疑う。
-        if (name := artist.get("name")) and (artist.get("id") or not _is_count_text(name))
+        if (name := artist.get("name")) and (artist.get("id") or not _is_meta_text(name))
     ]
     return "、".join(names) if names else "不明"
 
