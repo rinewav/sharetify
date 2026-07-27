@@ -2,6 +2,8 @@ import { useCallback, useState } from "react";
 import {
   CornerUpRight,
   Disc3,
+  Heart,
+  HeartOff,
   ListPlus,
   ListMusic,
   Play,
@@ -69,6 +71,8 @@ export interface TrackMenuHandlers {
 /** 曲に対して出す品書き。 */
 export function trackMenuItems(track: Track, handlers: TrackMenuHandlers = {}): MenuItem[] {
   const { playNext, enqueue } = usePlayer.getState();
+  const library = useLibrary.getState();
+  const liked = library.isLiked(track.id);
   const items: MenuItem[] = [];
 
   if (handlers.onPlay) {
@@ -88,6 +92,13 @@ export function trackMenuItems(track: Track, handlers: TrackMenuHandlers = {}): 
     },
   );
 
+  items.push({
+    label: liked ? "お気に入りから外す" : "お気に入りに追加",
+    icon: liked ? <HeartOff className="size-4" /> : <Heart className="size-4" />,
+    onSelect: () => void library.toggleLike(track),
+    separated: true,
+  });
+
   const { onAddTo, onOpenCollection, onRemove } = handlers;
 
   if (onAddTo) {
@@ -95,7 +106,6 @@ export function trackMenuItems(track: Track, handlers: TrackMenuHandlers = {}): 
       label: "プレイリストに追加",
       icon: <Plus className="size-4" />,
       onSelect: () => onAddTo(track),
-      separated: true,
     });
   }
 

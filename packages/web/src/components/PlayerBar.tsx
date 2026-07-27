@@ -18,6 +18,7 @@ import type { CollectionKind, Track } from "@musicshare/shared";
 import { Artwork } from "./Artwork.js";
 import { ProgressBar } from "./ProgressBar.js";
 import { formatDuration } from "../lib/format.js";
+import { useLibrary } from "../lib/library-store.js";
 import { canControl, usePlayer } from "../lib/player-store.js";
 import { useSession } from "../lib/session-store.js";
 
@@ -42,7 +43,10 @@ export function PlayerBar({
 }: Props) {
   const player = usePlayer();
   const inSession = useSession((s) => s.inSession);
+  const likes = useLibrary((s) => s.likes);
+  const toggleLike = useLibrary((s) => s.toggleLike);
   const track = player.current();
+  const liked = track ? likes.some((t) => t.id === track.id) : false;
   const duration = player.durationMs();
   const controllable = canControl(player);
 
@@ -145,10 +149,16 @@ export function PlayerBar({
               </div>
               <button
                 type="button"
-                className="ml-2 shrink-0 text-ink-muted transition hover:text-ink"
-                aria-label="ライブラリに追加"
+                onClick={() => void toggleLike(track)}
+                className={`press ml-2 shrink-0 transition ${
+                  liked ? "text-accent" : "text-ink-muted hover:text-ink"
+                }`}
+                aria-label={liked ? "お気に入りから外す" : "お気に入りに追加"}
+                aria-pressed={liked}
+                title={liked ? "お気に入りから外す" : "お気に入りに追加"}
               >
-                <Heart className="size-4" />
+                {/* 入っているものは塗りつぶす。輪郭だけだと入れたか分からない。 */}
+                <Heart className={`size-4 ${liked ? "fill-current" : ""}`} />
               </button>
             </>
           ) : (

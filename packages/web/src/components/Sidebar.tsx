@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Home, Library, Plus, Search, Users } from "lucide-react";
+import { Heart, Home, Library, Plus, Search, Users } from "lucide-react";
 import { Artwork } from "./Artwork.js";
 import { useLibrary } from "../lib/library-store.js";
 import type { Route } from "../lib/routes.js";
@@ -10,7 +10,7 @@ interface Props {
 }
 
 export function Sidebar({ route, onNavigate }: Props) {
-  const { playlists, groups, follows, createPlaylist } = useLibrary();
+  const { playlists, groups, follows, likes, createPlaylist } = useLibrary();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
 
@@ -85,7 +85,29 @@ export function Sidebar({ route, onNavigate }: Props) {
         )}
 
         <div className="no-scrollbar scroll-area min-h-0 flex-1 px-2 pb-2">
-          {playlists.length === 0 && follows.length === 0 && !creating && (
+          {/*
+            気に入った曲は、並びより先に置く。
+            どこで押した曲もここに溜まるので、いちばん手が伸びる。
+          */}
+          {likes.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onNavigate({ name: "likes" })}
+              className={`flex w-full items-center gap-3 rounded-md p-2 text-left transition ${
+                route.name === "likes" ? "bg-surface-3" : "hover:bg-surface-2"
+              }`}
+            >
+              <span className="grid size-11 shrink-0 place-items-center rounded bg-gradient-to-br from-accent to-accent-strong text-accent-ink">
+                <Heart className="size-5 fill-current" />
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium">お気に入りの曲</span>
+                <span className="block truncate text-xs text-ink-muted">{likes.length} 曲</span>
+              </span>
+            </button>
+          )}
+
+          {playlists.length === 0 && follows.length === 0 && likes.length === 0 && !creating && (
             <p className="px-2 py-4 text-xs text-ink-faint">
               まだありません。＋ から作るか、アーティストをフォローしてみてください。
             </p>

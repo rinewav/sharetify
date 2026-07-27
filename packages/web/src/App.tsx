@@ -24,6 +24,7 @@ import { ArtistView } from "./views/ArtistView.js";
 import { CollectionView } from "./views/CollectionView.js";
 import { GroupsView } from "./views/GroupsView.js";
 import { HomeView } from "./views/HomeView.js";
+import { LikesView } from "./views/LikesView.js";
 import { PlaylistView } from "./views/PlaylistView.js";
 import { SearchView } from "./views/SearchView.js";
 
@@ -47,7 +48,7 @@ export default function App() {
    * 引く関数だけを見ていると、その関数は書き換わらないので、
    * 中の曲が増減しても開いている画面が古いままになる。
    */
-  const { user, playlists, error: libraryError } = useLibrary();
+  const { user, playlists, likes, error: libraryError } = useLibrary();
 
   const peerStatus = useAutoPairing();
   const health = useNodeHealth(peerStatus);
@@ -120,6 +121,8 @@ export default function App() {
         );
       case "groups":
         return <GroupsView onNavigate={navigate} />;
+      case "likes":
+        return <LikesView cacheStates={cacheStates} onOpenCollection={openCollection} />;
       case "collection":
         // アーティストは並べ方が違う。曲だけでなく、まとまりごと見せたい。
         return route.kind === "artist" ? (
@@ -155,7 +158,7 @@ export default function App() {
         );
       }
     }
-  }, [route, health, cacheStates, playlists]);
+  }, [route, health, cacheStates, playlists, likes]);
 
   const banner = playerError ?? libraryError ?? (health && !health.resolverReady ? health.resolverMessage : null);
 

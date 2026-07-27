@@ -1,6 +1,7 @@
 import type {
   FollowedArtist,
   GroupWithMembers,
+  LikedTrack,
   LoginResponse,
   MeResponse,
   Playlist,
@@ -134,6 +135,16 @@ export function hubUnfollow(artistId: string): Promise<FollowedArtist[]> {
   return call<FollowedArtist[]>(`/api/follows/${encodeURIComponent(artistId)}`, {
     method: "DELETE",
   });
+}
+
+/* ------------------------------ 気に入った曲 ------------------------------ */
+
+export function hubLike(track: Track): Promise<LikedTrack[]> {
+  return call<LikedTrack[]>("/api/likes", { method: "POST", body: { track } });
+}
+
+export function hubUnlike(trackId: string): Promise<LikedTrack[]> {
+  return call<LikedTrack[]>(`/api/likes/${encodeURIComponent(trackId)}`, { method: "DELETE" });
 }
 
 /* ------------------------------ 同時リスニング ------------------------------ */

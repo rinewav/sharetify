@@ -1,5 +1,12 @@
 import { create } from "zustand";
-import type { FollowedArtist, GroupWithMembers, Playlist, Track, User } from "@musicshare/shared";
+import type {
+  FollowedArtist,
+  GroupWithMembers,
+  LikedTrack,
+  Playlist,
+  Track,
+  User,
+} from "@musicshare/shared";
 import {
   hubAddTrack,
   hubCreateGroup,
@@ -8,12 +15,14 @@ import {
   hubFollow,
   hubJoinGroup,
   hubLeaveGroup,
+  hubLike,
   hubLogin,
   hubMe,
   hubRemoveTrack,
   hubSetTracks,
   hubSignOut,
   hubUnfollow,
+  hubUnlike,
   storedToken,
 } from "./hub-client.js";
 
@@ -29,6 +38,8 @@ interface LibraryState {
   groups: GroupWithMembers[];
   playlists: Playlist[];
   follows: FollowedArtist[];
+  /** 気に入った曲。新しいものが先。 */
+  likes: LikedTrack[];
   loading: boolean;
   error: string | null;
   /** 中央サーバーに繋がっているか。落ちていても再生は続けられる。 */
@@ -52,6 +63,12 @@ interface LibraryState {
   unfollow: (artistId: string) => Promise<void>;
   isFollowing: (artistId: string) => boolean;
 
+  like: (track: Track) => Promise<void>;
+  unlike: (trackId: string) => Promise<void>;
+  isLiked: (trackId: string) => boolean;
+  /** 押すたびに入れ替える。ハートを押したときの入口。 */
+  toggleLike: (track: Track) => Promise<void>;
+
   playlistById: (id: string) => Playlist | undefined;
   groupById: (id: string) => GroupWithMembers | undefined;
 }
@@ -61,13 +78,14 @@ export const useLibrary = create<LibraryState>((set, get) => ({
   groups: [],
   playlists: [],
   follows: [],
+  likes: [],
   loading: false,
   error: null,
   online: false,
 
   refresh: async () => {
     if (!storedToken()) {
-      set({ user: null, groups: [], playlists: [], follows: [], online: false });
+      set({ user: null, groups: [], playlists: [], follows: [], likes: [], online: false });
       return;
     }
     set({ loading: true });
@@ -78,6 +96,7 @@ export const useLibrary = create<LibraryState>((set, get) => ({
         groups: me.groups,
         playlists: me.playlists,
         follows: me.follows ?? [],
+        likes: me.likes ?? [],
         online: true,
         error: null,
       });
@@ -108,7 +127,7 @@ export const useLibrary = create<LibraryState>((set, get) => ({
 
   signOut: () => {
     hubSignOut();
-    set({ user: null, groups: [], playlists: [], follows: [], online: false });
+    set({ user: null, groups: [], playlists: [], follows: [], likes: [], online: false });
   },
 
   createGroup: async (name) => {
@@ -187,6 +206,28 @@ export const useLibrary = create<LibraryState>((set, get) => ({
   },
 
   isFollowing: (artistId) => get().follows.some((a) => a.id === artistId),
+
+  /*
+   * 気に入った曲。押した瞬間に見た目を変える。
+   * 往復を待たせると、押したのか押していないのか分からなくなる。
+   */
+  like: async (track) => {
+    if (get().isLiked(track.id)) return;
+    set({ likes: [{ ...track, likedAt: new Date().toISOString() }, ...get().likes] });
+    await guard(set, async () => set({ likes: await hubLike(track) }));
+  },
+
+  unlike: async (trackId) => {
+    set({ likes: get().likes.filter((t) => t.id !== trackId) });
+    await guard(set, async () => set({ likes: await hubUnlike(trackId) }));
+  },
+
+  isLiked: (trackId) => get().likes.some((t) => t.id === trackId),
+
+  toggleLike: async (track) => {
+    if (get().isLiked(track.id)) await get().unlike(track.id);
+    else await get().like(track);
+  },
 
   playlistById: (id) => get().playlists.find((p) => p.id === id),
   groupById: (id) => get().groups.find((g) => g.id === id),

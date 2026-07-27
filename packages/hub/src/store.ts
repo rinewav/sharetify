@@ -5,6 +5,7 @@ import type {
   FollowedArtist,
   Group,
   GroupMember,
+  LikedTrack,
   Playlist,
   Track,
   User,
@@ -24,11 +25,20 @@ interface Snapshot {
   tokens: Record<string, string>;
   /** 利用者ごとの、気に入ったアーティスト。 */
   follows: Record<string, FollowedArtist[]>;
+  /** 利用者ごとの、気に入った曲。 */
+  likes: Record<string, LikedTrack[]>;
 }
 
 const DATA_PATH = resolve(process.cwd(), "data", "hub.json");
 
-const empty: Snapshot = { users: [], groups: [], playlists: [], tokens: {}, follows: {} };
+const empty: Snapshot = {
+  users: [],
+  groups: [],
+  playlists: [],
+  tokens: {},
+  follows: {},
+  likes: {},
+};
 
 let snapshot: Snapshot = structuredClone(empty);
 let writeQueue: Promise<void> = Promise.resolve();
@@ -249,6 +259,28 @@ export function unfollowArtist(userId: string, artistId: string): FollowedArtist
   snapshot.follows[userId] = followsFor(userId).filter((a) => a.id !== artistId);
   persist();
   return followsFor(userId);
+}
+
+/* ------------------------------ 気に入った曲 ------------------------------ */
+
+export function likesFor(userId: string): LikedTrack[] {
+  return snapshot.likes[userId] ?? [];
+}
+
+export function likeTrack(userId: string, track: Track): LikedTrack[] {
+  const list = likesFor(userId);
+  if (!list.some((t) => t.id === track.id)) {
+    // 新しいものを先に。直近に気に入ったものから辿りたい。
+    snapshot.likes[userId] = [{ ...track, likedAt: new Date().toISOString() }, ...list];
+    persist();
+  }
+  return likesFor(userId);
+}
+
+export function unlikeTrack(userId: string, trackId: string): LikedTrack[] {
+  snapshot.likes[userId] = likesFor(userId).filter((t) => t.id !== trackId);
+  persist();
+  return likesFor(userId);
 }
 
 export function deletePlaylist(id: string): boolean {

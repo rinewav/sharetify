@@ -19,6 +19,7 @@ import { ProgressBar } from "./ProgressBar.js";
 import { artworkGradient } from "../lib/artwork.js";
 import { useSwipeToDismiss } from "../lib/touch.js";
 import { formatDuration } from "../lib/format.js";
+import { useLibrary } from "../lib/library-store.js";
 import { canControl, usePlayer } from "../lib/player-store.js";
 
 interface Props {
@@ -36,7 +37,10 @@ interface Props {
 export function NowPlayingView({ onClose, onOpenCollection, onOpenQueue }: Props) {
   const player = usePlayer();
   const [showLyrics, setShowLyrics] = useState(false);
+  const likes = useLibrary((s) => s.likes);
+  const toggleLike = useLibrary((s) => s.toggleLike);
   const track = player.current();
+  const liked = track ? likes.some((t) => t.id === track.id) : false;
   const duration = player.durationMs();
   const controllable = canControl(player);
 
@@ -128,10 +132,14 @@ export function NowPlayingView({ onClose, onOpenCollection, onOpenQueue }: Props
             </div>
             <button
               type="button"
-              className="mt-1 shrink-0 text-ink-muted transition hover:text-ink"
-              aria-label="お気に入り"
+              onClick={() => void toggleLike(track)}
+              className={`press mt-1 shrink-0 transition ${
+                liked ? "text-accent" : "text-ink-muted hover:text-ink"
+              }`}
+              aria-label={liked ? "お気に入りから外す" : "お気に入りに追加"}
+              aria-pressed={liked}
             >
-              <Heart className="size-6" />
+              <Heart className={`size-6 ${liked ? "fill-current" : ""}`} />
             </button>
           </div>
 

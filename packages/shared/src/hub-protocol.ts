@@ -14,6 +14,7 @@ import type {
   FollowedArtist,
   Group,
   GroupMember,
+  LikedTrack,
   Playlist,
   Track,
   User,
@@ -29,6 +30,7 @@ export const HUB_ROUTES = {
   groupJoin: "/api/groups/join",
   playlists: "/api/playlists",
   follows: "/api/follows",
+  likes: "/api/likes",
   sessions: "/api/sessions",
   socket: "/ws",
 } as const;
@@ -52,6 +54,8 @@ export interface MeResponse {
   groups: GroupWithMembers[];
   playlists: Playlist[];
   follows: FollowedArtist[];
+  /** 気に入った曲。新しいものが先。 */
+  likes: LikedTrack[];
 }
 
 /* ------------------------------------------------------------------ *

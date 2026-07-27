@@ -120,6 +120,16 @@ export interface FollowedArtist {
   followedAt: string;
 }
 
+/**
+ * 気に入った曲の控え。
+ *
+ * 並びに入れるほどではないが、また聴きたいもの。
+ * どこで出会っても同じ印を付けられるよう、曲の見出しごと持つ。
+ */
+export interface LikedTrack extends Track {
+  likedAt: string;
+}
+
 /** 友だち同士の集まり。この中で共有プレイリストを複数持てる。 */
 export interface Group {
   id: string;

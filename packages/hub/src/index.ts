@@ -25,6 +25,8 @@ import {
   groupsForUser,
   joinGroupByCode,
   leaveGroup,
+  likeTrack,
+  likesFor,
   loadStore,
   membersOf,
   playlistsForUser,
@@ -32,6 +34,7 @@ import {
   renameUser,
   setPlaylistTracks,
   unfollowArtist,
+  unlikeTrack,
   userForToken,
 } from "./store.js";
 import {
@@ -95,6 +98,7 @@ app.get("/api/me", (c) => {
     groups: withMembers(user),
     playlists: playlistsForUser(user.id),
     follows: followsFor(user.id),
+    likes: likesFor(user.id),
   };
   return c.json(response);
 });
@@ -120,6 +124,25 @@ app.delete("/api/follows/:id", (c) => {
   if (!user) return c.json({ error: "unauthorized" }, 401);
 
   return c.json(unfollowArtist(user.id, c.req.param("id")));
+});
+
+/* ------------------------------ 気に入った曲 ------------------------------ */
+
+app.post("/api/likes", async (c) => {
+  const user = requireUser(c.req.header("authorization"));
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+
+  const body = await c.req.json<{ track?: Track }>().catch(() => null);
+  if (!body?.track?.id) return c.json({ error: "track is required" }, 400);
+
+  return c.json(likeTrack(user.id, body.track));
+});
+
+app.delete("/api/likes/:trackId", (c) => {
+  const user = requireUser(c.req.header("authorization"));
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+
+  return c.json(unlikeTrack(user.id, c.req.param("trackId")));
 });
 
 app.patch("/api/me", async (c) => {
