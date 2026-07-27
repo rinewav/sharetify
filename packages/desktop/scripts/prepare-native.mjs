@@ -47,7 +47,18 @@ function describe(path) {
 
 const target = process.argv[2];
 
-if (target === "win") {
+if (target === "dev") {
+  /*
+   * 手元で動かすための形に戻す。
+   *
+   * 配る支度をすると、この機械では読めない形に置き換わることがある。
+   * 支度のあとそのままにしておくと、次に手元で動かしたときに倒れる。
+   */
+  const arch = process.arch === "arm64" ? "arm64" : "x64";
+  console.log(`手元 (darwin-${arch}) の形に戻します…`);
+  fetchPrebuilt("darwin", arch);
+  console.log(`戻しました: ${describe(built)}`);
+} else if (target === "win") {
   console.log("Windows x64 の部品に差し替えます…");
   fetchPrebuilt("win32", "x64");
   console.log(`用意できました: ${describe(built)}`);
