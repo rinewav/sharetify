@@ -55,6 +55,11 @@ export default function App() {
     if (!storedToken()) setSignInOpen(true);
   }, []);
 
+  // 場に入った時点で一度だけ開く。以降は閉じたままにできる。
+  useEffect(() => {
+    if (inSession) setSessionPanelOpen(true);
+  }, [inSession]);
+
   const navigate = (next: Route) => {
     setHistory((h) => [...h, route]);
     setFuture([]);
@@ -81,7 +86,11 @@ export default function App() {
     });
   };
 
-  const panelOpen = sessionPanelOpen || inSession;
+  /*
+   * 開いているかどうかは、参加しているかとは別に持つ。
+   * 参加中を条件に混ぜると、閉じても開き直されて畳めなくなる。
+   */
+  const panelOpen = sessionPanelOpen;
   const nodeOnline = health?.ok === true;
 
   /** 曲の情報からアルバムやアーティストのページへ移る。 */

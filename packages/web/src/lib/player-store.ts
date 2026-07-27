@@ -46,6 +46,51 @@ export function attachSessionBridge(next: (action: SessionAction) => void): void
   broadcast = next;
 }
 
+/**
+ * 端末ごとの好み。
+ *
+ * 音量や繰り返しは、開くたびに決め直すものではない。
+ * 並びに関わるもの (かき混ぜ) は入れない。
+ * 復元したときに手元の並びと食い違うため。
+ */
+const SETTINGS_KEY = "musicshare.player-settings";
+
+interface StoredSettings {
+  volume: number;
+  muted: boolean;
+  repeat: RepeatMode;
+}
+
+function loadSettings(): StoredSettings {
+  const fallback: StoredSettings = { volume: 0.8, muted: false, repeat: "off" };
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw) as Partial<StoredSettings>;
+    return {
+      volume:
+        typeof parsed.volume === "number" && parsed.volume >= 0 && parsed.volume <= 1
+          ? parsed.volume
+          : fallback.volume,
+      muted: parsed.muted === true,
+      repeat:
+        parsed.repeat === "all" || parsed.repeat === "one" ? parsed.repeat : fallback.repeat,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function saveSettings(settings: StoredSettings): void {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  } catch {
+    // 保存できなくても再生には関わらない。
+  }
+}
+
+const initialSettings = loadSettings();
+
 interface PlayerState {
   queue: Track[];
   index: number;
@@ -106,11 +151,11 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   playing: false,
   positionMs: 0,
   loadedDurationMs: 0,
-  volume: 0.8,
-  muted: false,
+  volume: initialSettings.volume,
+  muted: initialSettings.muted,
   shuffle: false,
   orderedQueue: null,
-  repeat: "off",
+  repeat: initialSettings.repeat,
   loading: false,
   error: null,
   followingSession: false,
@@ -284,12 +329,14 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     const next = Math.min(1, Math.max(0, volume));
     set({ volume: next, muted: false });
     backend?.setVolume(next, false);
+    saveSettings({ volume: next, muted: false, repeat: get().repeat });
   },
 
   toggleMute: () => {
     const muted = !get().muted;
     set({ muted });
     backend?.setVolume(get().volume, muted);
+    saveSettings({ volume: get().volume, muted, repeat: get().repeat });
   },
 
   /**
@@ -320,10 +367,12 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     set({ shuffle: true, orderedQueue: queue, queue: mixed, index: 0 });
   },
 
-  cycleRepeat: () =>
-    set((s) => ({
-      repeat: s.repeat === "off" ? "all" : s.repeat === "all" ? "one" : "off",
-    })),
+  cycleRepeat: () => {
+    const repeat: RepeatMode =
+      get().repeat === "off" ? "all" : get().repeat === "all" ? "one" : "off";
+    set({ repeat });
+    saveSettings({ volume: get().volume, muted: get().muted, repeat });
+  },
 
   reportPosition: (positionMs) => set({ positionMs }),
   reportDuration: (loadedDurationMs) => set({ loadedDurationMs }),
