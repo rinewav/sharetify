@@ -19,7 +19,7 @@ warnings.filterwarnings("ignore")
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 
-from ytmusic_common import pick_thumbnail, to_track  # noqa: E402
+from ytmusic_common import pick_thumbnail, pick_views, to_track  # noqa: E402
 
 # 地域を指定すると、その土地で聴かれているものが返る。
 LANGUAGE = "ja"
@@ -42,7 +42,13 @@ def fetch_home(client, limit: int) -> dict:
             if entry.get("videoId"):
                 track = to_track(entry)
                 if track:
-                    items.append({"type": "track", "track": track})
+                    item = {"type": "track", "track": track}
+                    # 演奏者が分からないときは、代わりに出すものを添える。
+                    if track["artist"] == "不明":
+                        views = pick_views(entry)
+                        if views:
+                            item["subtitle"] = views
+                    items.append(item)
                 continue
 
             playlist_id = entry.get("playlistId")

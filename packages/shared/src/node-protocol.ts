@@ -126,7 +126,13 @@ export interface RadioResponse {
 }
 
 export type DiscoverItem =
-  | { type: "track"; track: Track }
+  /*
+   * 曲の札に添える副題。
+   *
+   * 供給元が演奏者ではなく再生回数を副題に置いていることがある。
+   * その場合 track.artist は「不明」になるので、出すものをここで持つ。
+   */
+  | { type: "track"; track: Track; subtitle?: string }
   | { type: "playlist"; id: string; title: string; subtitle?: string; artworkUrl?: string }
   | { type: "album"; id: string; title: string; subtitle?: string; artworkUrl?: string };
 

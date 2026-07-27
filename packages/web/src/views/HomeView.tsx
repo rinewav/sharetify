@@ -239,7 +239,8 @@ export function HomeView({ onNavigate, nodeOnline, onAddTo }: Props) {
                 key={`${item.track.id}-${index}`}
                 seed={item.track.id}
                 title={item.track.title}
-                subtitle={item.track.artist}
+                // 演奏者が分からない札には、供給元が添えた副題 (再生回数など) を出す。
+                subtitle={item.subtitle ?? item.track.artist}
                 artworkUrl={item.track.artworkUrl}
                 onClick={() => playQueue([item.track], 0)}
                 onPlay={() => playQueue([item.track], 0)}

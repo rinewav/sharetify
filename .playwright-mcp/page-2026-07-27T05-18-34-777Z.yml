@@ -1,0 +1,47 @@
+- generic [ref=f18e3]:
+  - generic [ref=f18e4]:
+    - navigation [ref=f18e6]:
+      - generic [ref=f18e7]:
+        - generic [ref=f18e8]: musicshare
+        - button "ホーム" [ref=f18e9]
+        - button "検索" [ref=f18e13]
+        - button "グループ" [ref=f18e17]
+      - generic [ref=f18e23]:
+        - generic [ref=f18e24]:
+          - generic [ref=f18e25]: ライブラリ
+          - button "プレイリストを作成" [ref=f18e28]
+        - paragraph [ref=f18e31]: まだありません。＋ から作るか、アーティストをフォローしてみてください。
+    - main [ref=f18e32]:
+      - generic [ref=f18e33]:
+        - generic [ref=f18e34]:
+          - button "戻る" [disabled] [ref=f18e35]
+          - button "進む" [disabled] [ref=f18e38]
+        - generic [ref=f18e41]:
+          - button "つなぐ" [ref=f18e42]
+          - button "?" [ref=f18e51]
+      - generic [ref=f18e53]:
+        - heading "こんにちは" [level=1] [ref=f18e54]
+        - generic [ref=f18e55]:
+          - heading "まずは一曲さがす" [level=2] [ref=f18e56]
+          - paragraph [ref=f18e57]: 聴いた曲をもとに、次に流すものを組み立てます。 検索して曲の行の ＋ を押すと、プレイリストにも入れられます。
+          - button "検索へ" [ref=f18e58]
+  - contentinfo [ref=f18e62]:
+    - generic [ref=f18e63]:
+      - generic [ref=f18e64]: 再生していません
+      - generic [ref=f18e66]:
+        - generic [ref=f18e67]:
+          - button "シャッフル" [ref=f18e68]
+          - button "前の曲" [ref=f18e75]
+          - button "再生" [disabled] [ref=f18e78]
+          - button "次の曲" [ref=f18e81]
+          - button "リピート" [ref=f18e84]
+        - generic [ref=f18e90]:
+          - generic [ref=f18e91]: 0:00
+          - slider
+          - generic [ref=f18e92]: 0:00
+      - generic [ref=f18e93]:
+        - button "一緒に聴く" [ref=f18e94]
+        - button "再生キュー" [ref=f18e97]
+        - generic [ref=f18e100]:
+          - button "ミュート" [ref=f18e101]
+          - slider [ref=f18e106] [cursor=pointer]

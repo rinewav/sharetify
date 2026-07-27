@@ -32,7 +32,16 @@ export function ProgressBar({ value, max, onChange, disabled = false, className 
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (disabled) return;
-    event.currentTarget.setPointerCapture(event.pointerId);
+    /*
+     * 指を捕まえておくと、バーの外まで動かしても追いかけられる。
+     * ただし既に離れている指を捕まえようとすると例外になるので、
+     * 捕まえられなくても掴んだ扱いは続ける。掴めないだけで操作は成り立つ。
+     */
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // 捕まえられなくても、この要素の上で離せば確定できる。
+    }
     setDragValue(ratioOf(event.clientX) * max);
   };
 

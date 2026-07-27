@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 export interface MenuItem {
   label: string;
@@ -31,7 +32,13 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
     const element = ref.current;
     if (!element) return;
 
-    const { width, height } = element.getBoundingClientRect();
+    /*
+     * 実際に描かれている寸法ではなく、素の寸法で測る。
+     *
+     * 出るときに少し縮んだ状態から始まるので、描かれている寸法を見ると
+     * 本来より小さく見え、そのぶん端で足りずにはみ出す。
+     */
+    const { offsetWidth: width, offsetHeight: height } = element;
     const margin = 8;
     setPosition({
       x: Math.min(x, window.innerWidth - width - margin),
@@ -70,7 +77,14 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
     };
   }, [onClose]);
 
-  return (
+  /*
+   * 画面の隅ではなく、いちばん外側に描く。
+   *
+   * 途中に変形のかかった親があると、画面を基準に置いたつもりでも
+   * その親が基準になってしまい、送り出した先が画面の外になる。
+   * 品書きは中身の並びに属するものではないので、外に出しておく。
+   */
+  return createPortal(
     <div
       ref={ref}
       role="menu"
@@ -96,6 +110,7 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
           </button>
         </div>
       ))}
-    </div>
+    </div>,
+    document.body,
   );
 }

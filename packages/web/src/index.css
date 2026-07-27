@@ -155,29 +155,39 @@ body {
   }
 }
 
+/*
+ * 終わったあとの状態は保持しない (both ではなく backwards)。
+ *
+ * 動きの終わりに transform: none を「保持」させると、指定なしと同じ見た目でも
+ * 変形がかかっている扱いのままになる。変形のかかった要素は、その内側にある
+ * 画面基準の配置 (position: fixed) の基準を奪ってしまい、
+ * 右クリックの品書きのようなものが画面の外へ飛ぶ。
+ * backwards なら始まる前だけ from を当て、終わったら素の状態に戻る。
+ */
+
 /** 下から浮かび上がる。一覧の見出しや区画に。 */
 @utility animate-rise {
-  animation: rise 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: rise 0.34s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 /** そっと現れる。覆いの背景に。 */
 @utility animate-fade {
-  animation: fade 0.18s ease-out both;
+  animation: fade 0.18s ease-out backwards;
 }
 
 /** 手前にせり出す。小さな窓に。 */
 @utility animate-slide-up {
-  animation: slide-up 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: slide-up 0.26s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 /** 画面を下から覆う。全画面の再生に。 */
 @utility animate-cover-up {
-  animation: cover-up 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: cover-up 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 /** 弾けて出る。右クリックの品書きに。 */
 @utility animate-pop {
-  animation: pop 0.14s ease-out both;
+  animation: pop 0.14s ease-out backwards;
 }
 
 /** 押した手応え。触れている間だけ少し沈む。 */
@@ -194,7 +204,7 @@ body {
 
 /** 画面の切り替え。移った先が下から入ってくる。 */
 @utility animate-page {
-  animation: rise 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: rise 0.28s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 @media (prefers-reduced-motion: reduce) {

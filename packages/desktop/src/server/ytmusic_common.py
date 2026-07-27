@@ -28,9 +28,47 @@ def pick_thumbnail(thumbnails: list[dict] | None) -> str | None:
     return _SIZE_IN_URL.sub(f"=w{ARTWORK_SIZE}-h{ARTWORK_SIZE}", url)
 
 
+# 「再生回数 705万 回」「1.2億 回視聴」「705M views」のような、演奏者ではない副題。
+#
+# カタログ側の解析は英語表記 (数字で始まり空白が 1 つ) を前提に回数を見分けている。
+# 日本語で受け取ると「再生回数 705万 回」のように数字で始まらないため判定から漏れ、
+# 識別子のない演奏者として扱われてしまう。こちらで日本語を指定している以上、
+# 取り違えを引き受けるのもこちら側の仕事。
+_VIEWS_WORD = re.compile(r"(再生回数|回視聴|回再生|views?|listeners?)", re.IGNORECASE)
+_HAS_DIGIT = re.compile(r"\d")
+
+
+def _is_views_text(name: str) -> bool:
+    """
+    演奏者名ではなく回数の表記か。識別子を持つものは必ず演奏者なので呼ばない。
+
+    語だけで判ずると "Rear View Mirror" のような実在の名前まで落ちてしまう。
+    回数には必ず数字が付くので、両方そろったときだけ回数とみなす。
+    """
+    return bool(_VIEWS_WORD.search(name)) and bool(_HAS_DIGIT.search(name))
+
+
 def join_artists(entry: dict) -> str:
-    names = [a.get("name") for a in entry.get("artists") or [] if a.get("name")]
+    names = [
+        name
+        for artist in entry.get("artists") or []
+        # 識別子があるものは確実に演奏者。無いものだけ中身を疑う。
+        if (name := artist.get("name")) and (artist.get("id") or not _is_views_text(name))
+    ]
     return "、".join(names) if names else "不明"
+
+
+def pick_views(entry: dict) -> str | None:
+    """回数の表記を拾う。演奏者が分からないとき、副題として出すために使う。"""
+    views = entry.get("views")
+    if views and _is_views_text(str(views)):
+        return str(views)
+
+    for artist in entry.get("artists") or []:
+        name = artist.get("name")
+        if name and not artist.get("id") and _is_views_text(name):
+            return name
+    return views or None
 
 
 def first_artist_id(entry: dict) -> str | None:
