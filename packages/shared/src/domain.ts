@@ -55,6 +55,8 @@ export interface AlbumSummary {
   playlistId?: string;
   title: string;
   artist: string;
+  /** 代表演奏者の識別子。表示名からは辿れないので別に持たせる。 */
+  artistId?: string;
   year?: string;
   kind?: string;
   artworkUrl?: string;

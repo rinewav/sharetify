@@ -11,7 +11,9 @@ import { ResultCard } from "../components/ResultCard.js";
 import { TrackList } from "../components/TrackList.js";
 import { formatCount } from "../lib/format.js";
 import { nodeCache, nodeCollection, nodeSearch } from "../lib/node-client.js";
+import { openByName } from "../lib/open-by-name.js";
 import { usePlayer } from "../lib/player-store.js";
+import type { Route } from "../lib/routes.js";
 import { useCollectionMenuItems, useContextMenu } from "../lib/track-menu.js";
 
 interface Props {
@@ -20,13 +22,32 @@ interface Props {
   onOpenCollection: (kind: CollectionKind, id: string, title: string) => void;
   /** 曲をプレイリストへ入れる入口。 */
   onAddTo: (track: Track) => void;
+  /** 開いた時点で入れておく語。名前を押して連れてこられたときに使う。 */
+  initialQuery?: string;
+  /** 名前しか分からない相手の場所へ行くための入口。 */
+  onNavigate: (route: Route) => void;
 }
 
 const EMPTY: SearchResponse = { tracks: [], albums: [], artists: [], playlists: [] };
 
 /** 曲だけでなく、アーティスト・アルバム・プレイリストも並べる。 */
-export function SearchView({ cacheStates, health, onOpenCollection, onAddTo }: Props) {
-  const [query, setQuery] = useState("");
+export function SearchView({
+  cacheStates,
+  health,
+  onOpenCollection,
+  onAddTo,
+  initialQuery,
+  onNavigate,
+}: Props) {
+  const [query, setQuery] = useState(initialQuery ?? "");
+
+  /*
+   * 外から語を渡されたら、それに差し替える。
+   * 名前を押して連れてこられた場合など、開いた時点で探し始めたい。
+   */
+  useEffect(() => {
+    if (initialQuery !== undefined) setQuery(initialQuery);
+  }, [initialQuery]);
   const [results, setResults] = useState<SearchResponse>(EMPTY);
   const [error, setError] = useState<string | null>(null);
   /**
@@ -205,7 +226,13 @@ export function SearchView({ cacheStates, health, onOpenCollection, onAddTo }: P
               key={album.id}
               seed={album.id}
               title={album.title}
-              subtitle={[album.kind, album.year, album.artist].filter(Boolean).join(" · ")}
+              subtitle={[album.kind, album.year].filter(Boolean).join(" · ")}
+              subtitleLink={{
+                label: album.artist,
+                ...(album.artistId
+                  ? { onOpen: () => open("artist", album.artistId!, album.artist) }
+                  : {}),
+              }}
               artworkUrl={album.artworkUrl}
               onOpen={() => open("album", album.id, album.title)}
               onPlay={() => void playCollection("album", album.id)}
@@ -223,11 +250,22 @@ export function SearchView({ cacheStates, health, onOpenCollection, onAddTo }: P
               key={playlist.id}
               seed={playlist.id}
               title={playlist.title}
-              subtitle={
-                [playlist.author, playlist.itemCount ? `${playlist.itemCount} 曲` : null]
-                  .filter(Boolean)
-                  .join(" · ") || "プレイリスト"
-              }
+              {...(playlist.itemCount ? { subtitle: `${playlist.itemCount} 曲` } : {})}
+              {...(playlist.author
+                ? {
+                    subtitleLink: {
+                      label: playlist.author,
+                      /*
+                       * 作り手の識別子は供給元から来ない。
+                       * 名前で探して、同じ名前の人が居ればその場所へ、
+                       * 居なければ探した結果へ連れていく。
+                       */
+                      onOpen: () => void openByName(playlist.author!, onNavigate),
+                    },
+                  }
+                : playlist.itemCount
+                  ? {}
+                  : { subtitle: "プレイリスト" })}
               artworkUrl={playlist.artworkUrl}
               onOpen={() => open("playlist", playlist.id, playlist.title)}
               onPlay={() => void playCollection("playlist", playlist.id)}

@@ -23,6 +23,7 @@ warnings.filterwarnings("ignore")
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 
 from ytmusic_common import (  # noqa: E402
+    first_artist_id,
     join_artists,
     parse_count,
     pick_thumbnail,
@@ -41,6 +42,8 @@ def to_album(entry: dict) -> dict | None:
         "playlistId": entry.get("playlistId"),
         "title": title,
         "artist": join_artists(entry),
+        # 名前を押してその人の場所へ行けるように、識別子も添える。
+        "artistId": first_artist_id(entry),
         "year": entry.get("year"),
         # アルバム / シングル / EP の区別。表示の並べ分けに使う。
         "kind": entry.get("type"),

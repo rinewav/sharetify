@@ -14,12 +14,16 @@ interface Props {
   onOpen: () => void;
   onPlay?: () => void;
   /**
-   * 副題の演奏者を押したときの行き先。
+   * 副題の末尾に置く、押せる名前。
    *
-   * 札そのものを押すと曲が鳴るが、名前を見て「この人の他の曲」へ
-   * 行きたくなることがある。名前だけは別の行き先にしておく。
+   * 札そのものを押すと開くか鳴るかするが、名前を見て
+   * 「この人の他の曲」へ行きたくなることがある。
+   * 名前だけは別の行き先にしておく。
+   *
+   * 行き先が無いとき (供給元が識別子を寄こさないとき) は、
+   * onOpen を省けば、ただの文字として出る。
    */
-  onOpenSubtitle?: () => void;
+  subtitleLink?: { label: string; onOpen?: () => void };
   /** 右ボタンでも指で押し続けても出す品書き。 */
   menuItems?: () => MenuItem[];
   onOpenMenu?: (x: number, y: number, items: MenuItem[]) => void;
@@ -34,7 +38,7 @@ export function ResultCard({
   round = false,
   onOpen,
   onPlay,
-  onOpenSubtitle,
+  subtitleLink,
   menuItems,
   onOpenMenu,
 }: Props) {
@@ -66,9 +70,16 @@ export function ResultCard({
         )}
       </div>
       <div className="mt-3 truncate text-sm font-semibold">{title}</div>
-      {subtitle && (
+      {(subtitle || subtitleLink) && (
         <div className="mt-1 truncate text-xs text-ink-muted">
-          <LinkedName label={subtitle} {...(onOpenSubtitle ? { onOpen: onOpenSubtitle } : {})} />
+          {subtitle}
+          {subtitle && subtitleLink && " · "}
+          {subtitleLink && (
+            <LinkedName
+              label={subtitleLink.label}
+              {...(subtitleLink.onOpen ? { onOpen: subtitleLink.onOpen } : {})}
+            />
+          )}
         </div>
       )}
     </PressableCard>

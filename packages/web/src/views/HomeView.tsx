@@ -8,6 +8,7 @@ import { PressableCard } from "../components/PressableCard.js";
 import { formatCount } from "../lib/format.js";
 import { useLibrary } from "../lib/library-store.js";
 import { nodeCollection, nodeDiscover, nodeRadio } from "../lib/node-client.js";
+import { openByName } from "../lib/open-by-name.js";
 import {
   formatListeningTime,
   forgottenFavorites,
@@ -256,16 +257,19 @@ export function HomeView({ onNavigate, nodeOnline, onAddTo }: Props) {
                 seed={item.track.id}
                 title={item.track.title}
                 // 演奏者が分からない札には、供給元が添えた副題 (再生回数など) を出す。
-                subtitle={item.subtitle ?? item.track.artist}
+                {...(item.subtitle
+                  ? { subtitle: item.subtitle }
+                  : {
+                      subtitleLink: {
+                        label: item.track.artist,
+                        ...(item.track.artistId
+                          ? { onOpen: () => openArtist(item.track.artistId!, item.track.artist) }
+                          : {}),
+                      },
+                    })}
                 artworkUrl={item.track.artworkUrl}
                 onClick={() => playQueue([item.track], 0)}
                 onPlay={() => playQueue([item.track], 0)}
-                {...(item.track.artistId
-                  ? {
-                      onOpenSubtitle: () =>
-                        openArtist(item.track.artistId!, item.track.artist),
-                    }
-                  : {})}
                 menuItems={trackMenu(item.track, () => playQueue([item.track], 0))}
                 onOpenMenu={menu.openAt}
               />
@@ -274,7 +278,19 @@ export function HomeView({ onNavigate, nodeOnline, onAddTo }: Props) {
                 key={`${item.id}-${index}`}
                 seed={item.id}
                 title={item.title}
-                subtitle={item.subtitle ?? (item.type === "album" ? "アルバム" : "プレイリスト")}
+                /*
+                 * 供給元が添える副題は、作り手の名前だったり回数だったりする。
+                 * 名前なら押してその人の場所へ行けるようにする。
+                 * 識別子は来ないので、名前で探して辿る。
+                 */
+                {...(item.subtitle
+                  ? {
+                      subtitleLink: {
+                        label: item.subtitle,
+                        onOpen: () => void openByName(item.subtitle!, onNavigate),
+                      },
+                    }
+                  : { subtitle: item.type === "album" ? "アルバム" : "プレイリスト" })}
                 artworkUrl={item.artworkUrl}
                 onClick={() =>
                   openCollection(
@@ -349,13 +365,15 @@ function TrackSection({
             key={`${track.id}-${index}`}
             seed={track.id}
             title={track.title}
-            subtitle={track.artist}
+            subtitleLink={{
+              label: track.artist,
+              ...(track.artistId && onOpenArtist
+                ? { onOpen: () => onOpenArtist(track.artistId!, track.artist) }
+                : {}),
+            }}
             artworkUrl={track.artworkUrl}
             onClick={() => onPlayAll(tracks, index)}
             onPlay={() => onPlayAll(tracks, index)}
-            {...(track.artistId && onOpenArtist
-              ? { onOpenSubtitle: () => onOpenArtist(track.artistId!, track.artist) }
-              : {})}
             menuItems={onMenu(track, () => onPlayAll(tracks, index))}
             onOpenMenu={onOpenMenu}
           />
@@ -459,7 +477,21 @@ function NewReleases({
             key={release.id}
             seed={release.id}
             title={release.title}
-            subtitle={[release.artist, release.year].filter(Boolean).join(" · ")}
+            {...(release.year ? { subtitle: release.year } : {})}
+            subtitleLink={{
+              label: release.artist,
+              ...(release.artistId
+                ? {
+                    onOpen: () =>
+                      onNavigate({
+                        name: "collection",
+                        kind: "artist",
+                        id: release.artistId!,
+                        title: release.artist,
+                      }),
+                  }
+                : {}),
+            }}
             artworkUrl={release.artworkUrl}
             onClick={open}
             menuItems={onMenu({
@@ -496,24 +528,24 @@ function Card({
   round = false,
   onClick,
   onPlay,
-  onOpenSubtitle,
+  subtitleLink,
   menuItems,
   onOpenMenu,
 }: {
   seed: string;
   title: string;
-  subtitle: string;
+  subtitle?: string;
   artworkUrl?: string;
   round?: boolean;
   onClick: () => void;
   onPlay?: () => void;
   /**
-   * 副題の演奏者を押したときの行き先。
+   * 副題の末尾に置く、押せる名前。
    *
    * 札そのものを押せば曲が鳴るが、名前を見て
    * 「この人の他の曲」へ行きたくなることがある。
    */
-  onOpenSubtitle?: () => void;
+  subtitleLink?: { label: string; onOpen?: () => void };
   menuItems?: () => MenuItem[];
   onOpenMenu?: (x: number, y: number, items: MenuItem[]) => void;
 }) {
@@ -545,9 +577,18 @@ function Card({
         )}
       </div>
       <div className="mt-3 truncate text-sm font-semibold">{title}</div>
-      <div className="mt-1 truncate text-xs text-ink-muted">
-        <LinkedName label={subtitle} {...(onOpenSubtitle ? { onOpen: onOpenSubtitle } : {})} />
-      </div>
+      {(subtitle || subtitleLink) && (
+        <div className="mt-1 truncate text-xs text-ink-muted">
+          {subtitle}
+          {subtitle && subtitleLink && " · "}
+          {subtitleLink && (
+            <LinkedName
+              label={subtitleLink.label}
+              {...(subtitleLink.onOpen ? { onOpen: subtitleLink.onOpen } : {})}
+            />
+          )}
+        </div>
+      )}
     </PressableCard>
   );
 }
@@ -594,6 +635,8 @@ interface Release {
   id: string;
   title: string;
   artist: string;
+  /** 名前を押してその人の場所へ行くための識別子。 */
+  artistId?: string;
   year?: string;
   artworkUrl?: string;
 }
@@ -620,6 +663,8 @@ function useFollowedReleases(
             id: release.id,
             title: release.title,
             artist: release.artist || artist.name,
+            // 誰を追っていて出てきたものかは分かっている。そこへ飛ばせる。
+            artistId: release.artistId ?? artist.id,
             year: release.year,
             artworkUrl: release.artworkUrl,
           }));

@@ -129,6 +129,8 @@ export default function App() {
             health={health}
             onOpenCollection={openCollection}
             onAddTo={setAddingTrack}
+            {...(route.query !== undefined ? { initialQuery: route.query } : {})}
+            onNavigate={navigate}
           />
         );
       case "groups":
