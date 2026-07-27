@@ -40,6 +40,21 @@ function viaPeer(): boolean {
   return peerClient.ready;
 }
 
+/**
+ * つないでいないのに投げていないか。
+ *
+ * 直結が要る作りなのに繋がっていないと、要求は行き場を失う。
+ * 中央から配られた画面では、行き先が画面と同じ所になるので、
+ * 中央が画面を返し、それを中身として読もうとして意味の分からない形で失敗する。
+ * 先に断っておけば、何が足りないのかがそのまま伝わる。
+ */
+function assertReachable(): void {
+  if (viaPeer()) return;
+  // 付け足す道がある間は、取り次ぐ役がいる。開発中はこちら。
+  if (BASE !== "") return;
+  throw new Error("自分の PC につながっていません。合言葉でつないでください。");
+}
+
 async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   if (viaPeer()) {
     const reply = await peerClient.request({ method: "GET", path });
@@ -50,10 +65,24 @@ async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
     return reply.json as T;
   }
 
+  assertReachable();
+
   const response = await fetch(`${BASE}${path}`, { signal });
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { error?: string } | null;
     throw new Error(body?.error ?? `リクエストに失敗しました (${response.status})`);
+  }
+
+  /*
+   * 中身の種類を確かめてから読む。
+   *
+   * 行き先を取り違えていると、画面がそのまま返ってくることがある。
+   * それを中身として読もうとすると、閲覧環境ごとに違う言い回しで倒れる
+   * (iOS では「The string did not match the expected pattern」)。
+   */
+  const type = response.headers.get("content-type") ?? "";
+  if (!type.includes("json")) {
+    throw new Error("自分の PC につながっていません。合言葉でつないでください。");
   }
   return (await response.json()) as T;
 }
@@ -92,6 +121,7 @@ export async function nodeCache(trackIds: string[]): Promise<void> {
     await peerClient.request({ method: "POST", path: "/api/cache", body: { trackIds } });
     return;
   }
+  assertReachable();
   await fetch(`${BASE}/api/cache`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -194,6 +224,8 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
     if (reply.status >= 400) throw new Error(describeStatus(reply.status, reply.json));
     return reply.json as T;
   }
+
+  assertReachable();
 
   const response = await fetch(`${BASE}${path}`, {
     method: "POST",
