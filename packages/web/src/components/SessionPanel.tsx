@@ -4,6 +4,8 @@ import { usePlayer } from "../lib/player-store.js";
 
 interface Props {
   onClose: () => void;
+  /** 狭い画面で覆いかぶせるときは幅を固定しない。 */
+  fullWidth?: boolean;
 }
 
 /**
@@ -14,13 +16,17 @@ interface Props {
  * 誰が引っかかっているのかをここで可視化しておかないと、
  * 一人だけ無音になったときに原因が分からない。
  */
-export function SessionPanel({ onClose }: Props) {
+export function SessionPanel({ onClose, fullWidth = false }: Props) {
   const { participants, connected, driftMs, roundTripMs, leaveSession } = useSession();
   const track = usePlayer((s) => s.current());
   const waiting = participants.filter((p) => !p.ready);
 
   return (
-    <aside className="flex h-full w-[320px] shrink-0 flex-col rounded-lg bg-surface">
+    <aside
+      className={`flex h-full shrink-0 flex-col rounded-lg bg-surface ${
+        fullWidth ? "w-full" : "w-[320px]"
+      }`}
+    >
       <header className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2">
           <Radio className={`size-4 ${connected ? "text-accent" : "text-ink-faint"}`} />

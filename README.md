@@ -8,14 +8,24 @@ PC ではデスクトップアプリ、スマートフォンでは PWA として
 
 ## いま何ができているか
 
-UI の仮組みと、各層の骨格までできている。実際の音はまだ鳴らない（再生位置だけがタイマーで進む）。
+**検索して曲を再生できる。** macOS 上のブラウザで動作を確認済み。
 
 | 層 | 状態 |
 |---|---|
 | 共有型・プロトコル定義 (`packages/shared`) | 定義済み |
-| 中央サーバー (`packages/hub`) | API + 同時リスニングの WebSocket まで実装済み。未接続 |
-| PWA (`packages/web`) | 画面はひと通り動く。モックデータで表示 |
-| デスクトップ (`packages/desktop`) | 内蔵サーバーと解決処理を実装済み。UI とは未接続 |
+| 中央サーバー (`packages/hub`) | API + 同時リスニングの WebSocket まで実装済み。UI とは未接続 |
+| PWA (`packages/web`) | **検索・再生が実データで動く**。プレイリスト表示はまだモック |
+| デスクトップ (`packages/desktop`) | 内蔵サーバーと解決処理が動作。UI から利用中 |
+
+確認済みの動作:
+
+- 検索 → 曲を選択 → 再生開始、再生位置が進む
+- 長さの取得、シーク、次へ / 前へ
+- MediaSession に曲名と再生状態が入る（ロック画面表示の前提）
+- Tailscale の HTTPS 経由で、画面・API・音声すべて到達
+
+**iPhone 実機での確認はこれから。** 手順は [docs/ios-testing.md](docs/ios-testing.md)。
+ここで画面ロック中の再生が成立するかが、この構成を続けられるかの分かれ目になる。
 
 ![ホーム](docs/screenshots/home.png)
 ![プレイリスト](docs/screenshots/playlist.png)
@@ -86,18 +96,30 @@ pnpm install
 ### 開発時の起動
 
 ```bash
+# 自分の PC の node サーバー (音声の取得を担う。これがないと何も鳴らない)
+pnpm --filter @musicshare/desktop dev
+
 # PWA (http://localhost:5273)
 pnpm dev:web
 
-# 中央サーバー (http://localhost:47820)
+# 中央サーバー (http://localhost:47820)。同時リスニングを使うときだけ必要
 pnpm dev:hub
-
-# 自分の PC の node サーバー (http://localhost:47821)
-pnpm --filter @musicshare/desktop dev
 
 # デスクトップアプリごと起動する場合
 pnpm --filter @musicshare/desktop dev:electron
 ```
+
+画面側は node と hub を同一オリジンに中継している（`/node-api`, `/hub-api`）。
+スマートフォンからは HTTPS で入ってくるため、HTTP の node を直接叩くと混在コンテンツで弾かれる。
+**この中継を外さないこと。**
+
+### スマートフォンから開く
+
+```bash
+tailscale serve --bg --https=8443 http://127.0.0.1:5273
+```
+
+詳しくは [docs/ios-testing.md](docs/ios-testing.md)。
 
 ### 必要なもの
 
@@ -109,15 +131,13 @@ pnpm --filter @musicshare/desktop dev:electron
 
 ## 次にやること
 
-実装順序は**リスクの高い順**にすること。UI やログインから作ると、後半になってから再生が成立しないと判明して作り直しになる。
+1. **iPhone 実機でロック画面の再生を確認する（最優先）** — [手順](docs/ios-testing.md)。ここが駄目なら構成ごと見直し
+2. **オフラインキャッシュ** — Cache Storage に保存し、PC オフ時の再生経路を成立させる
+3. **hub に接続** — プレイリスト表示のモックを実 API に差し替える
+4. **同時リスニングの実接続** — WebSocket は実装済み。UI と繋ぐ
+5. **last.fm 連携**
 
-1. **再生経路を通す（最優先）** — node の `/api/stream` から実際に音を出し、`<audio>` に繋ぐ。仮組みのタイマーを `timeupdate` に置き換える
-2. **ロック画面での再生を確認する** — MediaSession の配線は済んでいる。実際の挙動を実機で確認する
-3. **オフラインキャッシュ** — Cache Storage に保存し、PC オフ時の再生経路を成立させる
-4. **hub に接続** — モックデータを実 API に差し替える
-5. **Tailscale 経由の接続** — スマートフォンから自分の node へ
-6. **同時リスニングの実接続** — WebSocket は実装済み。UI と繋ぐ
-7. **last.fm 連携**
+完了済み: 再生経路の疎通、Tailscale 経由での到達。
 
 その先（V1.5 以降）: プレイリスト変換、ボーカル抽出。
 
