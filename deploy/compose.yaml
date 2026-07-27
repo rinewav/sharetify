@@ -1,0 +1,36 @@
+# MiniServer で中央サーバーを走らせるための構成。
+#
+# 外へは Cloudflare のトンネル越しにだけ出す。
+# 直接ポートを開けないので、家の回線に穴を空けずに済む。
+
+services:
+  hub:
+    build:
+      context: ..
+      dockerfile: packages/hub/Dockerfile
+    image: sharetify-hub:latest
+    container_name: sharetify-hub
+    restart: unless-stopped
+    environment:
+      PORT: "47820"
+    volumes:
+      # 覚えておくもの (利用者・集まり・並び) はここに残る。
+      - hub-data:/app/data
+    # トンネル役と同じ網の中だけで話す。外には自分で出さない。
+    networks: [sharetify]
+    expose: ["47820"]
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: sharetify-tunnel
+    restart: unless-stopped
+    # 合言葉は .env に置く。リポジトリには入れない。
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
+    depends_on: [hub]
+    networks: [sharetify]
+
+volumes:
+  hub-data:
+
+networks:
+  sharetify:
