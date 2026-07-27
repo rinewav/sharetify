@@ -75,9 +75,19 @@ body {
   padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
 }
 
+/*
+ * ホーム画面から起動した場合は、表示領域そのものが縁を避けた大きさで渡される。
+ * 実測では画面 844 に対し 797 しか与えられず、下端の 47 は描ける範囲の外にあった。
+ * それでも問い合わせると縁の寸法が返ってくるので、素直に足すと
+ * 外側の 47 と内側の 42 で二重に空く。ここでは足さない。
+ */
 @media (display-mode: standalone) {
   .pad-top-safe {
     padding-top: 0;
+  }
+
+  .pad-bottom-safe {
+    padding-bottom: 0.5rem;
   }
 }
 
