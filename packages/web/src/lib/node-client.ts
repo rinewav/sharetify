@@ -11,6 +11,7 @@ import type {
   Track,
 } from "@sharetify/shared";
 import { peerClient } from "./peer-client.js";
+import { isDesktopApp } from "./platform.js";
 
 /**
  * 自分の PC 上の node への接続。
@@ -52,6 +53,11 @@ function assertReachable(): void {
   if (viaPeer()) return;
   // 付け足す道がある間は、取り次ぐ役がいる。開発中はこちら。
   if (BASE !== "") return;
+  /*
+   * 配って回す入れ物の中では、画面と仕組みが同じ所に居る。
+   * 自分自身なので、つなぐ相手を探す必要はない。
+   */
+  if (isDesktopApp()) return;
   throw new Error("自分の PC につながっていません。合言葉でつないでください。");
 }
 

@@ -30,26 +30,64 @@ const BUNDLED_WEB = join(HERE, "web");
 const WEB_DEV_URL = process.env.SHARETIFY_WEB_URL ?? "http://localhost:5273";
 
 let window: BrowserWindow | null = null;
+/** 窓を開き直すときの行き先。立てたあとに決まる。 */
+let windowUrl = WEB_DEV_URL;
 
 /**
- * その場所で既に動いているのが、同じ仕組みかどうか。
+ * その場所で既に動いているものが、画面まで配れるかどうか。
  *
  * 二つ目を立ち上げたときや、開発中のものが残っているとき、
  * そのまま待ち受けようとすると場所の取り合いで落ちる。
- * 相手が仲間なら、立てずにその画面を出せば済む。
+ * 相手が画面まで配れるなら、立てずにそれを開けば済む。
+ *
+ * 大事なのは「仲間かどうか」ではなく「画面を配れるかどうか」。
+ * 開発中のものは仕組みだけを持っていて画面を配らないので、
+ * それを開くと何も出ない。
  */
-async function findRunningServer(port: number): Promise<boolean> {
+async function findUsableServer(port: number): Promise<boolean> {
   try {
-    const res = await fetch(`http://127.0.0.1:${port}/api/health`, {
+    const health = await fetch(`http://127.0.0.1:${port}/api/health`, {
       signal: AbortSignal.timeout(1500),
     });
-    if (!res.ok) return false;
-    const body = (await res.json()) as { ok?: boolean; version?: string };
-    // 見分けの印。別のものが同じ場所を使っていることもある。
-    return body.ok === true && typeof body.version === "string";
+    if (!health.ok) return false;
+    const body = (await health.json()) as { ok?: boolean; version?: string };
+    if (body.ok !== true || typeof body.version !== "string") return false;
+
+    // 画面まで配れるか確かめる。配れないなら、そこを開いても何も出ない。
+    const page = await fetch(`http://127.0.0.1:${port}/`, {
+      signal: AbortSignal.timeout(1500),
+    });
+    return page.ok && (page.headers.get("content-type") ?? "").includes("html");
   } catch {
     return false;
   }
+}
+
+/**
+ * 空いている場所を探す。
+ *
+ * 決まった場所が既に埋まっていて、そこが使えないときに使う。
+ * 埋まったまま待ち受けようとすれば落ちるだけなので、少しずらして試す。
+ */
+async function findFreePort(from: number, attempts = 20): Promise<number> {
+  const { createServer } = await import("node:net");
+
+  for (let port = from; port < from + attempts; port += 1) {
+    /*
+     * 実際に待ち受けるのと同じ形で試す。
+     *
+     * 特定の宛先だけを見て確かめると、全ての宛先で待ち受けている相手を
+     * 見落とす。空いていると判じた場所で立てようとして落ちる。
+     */
+    const free = await new Promise<boolean>((resolve) => {
+      const probe = createServer();
+      probe.once("error", () => resolve(false));
+      probe.once("listening", () => probe.close(() => resolve(true)));
+      probe.listen(port);
+    });
+    if (free) return port;
+  }
+  throw new Error(`${from} から ${attempts} 個ぶん探しましたが、空きがありません`);
 }
 
 async function createWindow(url: string): Promise<void> {
@@ -119,24 +157,36 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(async () => {
-    const port = Number(process.env.PORT ?? NODE_DEFAULT_PORT);
+    const wanted = Number(process.env.PORT ?? NODE_DEFAULT_PORT);
     const bundled = existsSync(join(BUNDLED_WEB, "index.html"));
-    const url = bundled ? `http://127.0.0.1:${port}/` : WEB_DEV_URL;
 
     buildMenu(() => window);
 
     try {
       /*
-       * 既に仲間が待ち受けているなら、重ねて立てない。
-       * 開発中のものを動かしたまま入れ物を開いたときに、これで助かる。
+       * 既に画面まで配れるものが待ち受けているなら、重ねて立てない。
+       * 二つ目を開いたときに、これで助かる。
        */
-      const alreadyRunning = await findRunningServer(port);
-      if (alreadyRunning) {
+      let port = wanted;
+      const usable = await findUsableServer(wanted);
+
+      if (usable) {
         console.log(`[sharetify] ${port} で既に動いているものを使います`);
       } else {
+        /*
+         * 使えないものが居座っているなら、場所をずらして自分で立てる。
+         * 開発中のものは仕組みだけを持っていて画面を配らないので、
+         * そこに相乗りすると何も出ない。
+         */
+        port = await findFreePort(wanted);
+        if (port !== wanted) {
+          console.log(`[sharetify] ${wanted} は使えないので ${port} で立てます`);
+        }
         await startNodeServer(port, bundled ? BUNDLED_WEB : undefined);
       }
-      await createWindow(url);
+
+      windowUrl = bundled ? `http://127.0.0.1:${port}/` : WEB_DEV_URL;
+      await createWindow(windowUrl);
     } catch (error) {
       /*
        * 立ち上がらなかったことを黙って飲み込まない。
@@ -144,13 +194,13 @@ if (!app.requestSingleInstanceLock()) {
        * 何が起きているのか確かめる手掛かりが残らない。
        */
       console.error("[sharetify] 起動に失敗しました", error);
-      dialog.showErrorBox("起動できませんでした", describeStartupError(error, port));
+      dialog.showErrorBox("起動できませんでした", describeStartupError(error, wanted));
       app.quit();
       return;
     }
 
     app.on("activate", () => {
-      if (BrowserWindow.getAllWindows().length === 0) void createWindow(url);
+      if (BrowserWindow.getAllWindows().length === 0) void createWindow(windowUrl);
     });
   });
 }
