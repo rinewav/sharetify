@@ -23,8 +23,8 @@ import type {
 /*
  * 使う実行ファイルは、起動時に調べた結果を受け取る。
  *
- * 機械に元から入っているとは限らないので、決め打ちにできない。
- * 自分で用意した置き場のものを先に使い、無ければ機械のものを探す。
+ * パソコンに元から入っているとは限らないので、決め打ちにできない。
+ * 自分で用意した置き場のものを先に使い、無ければパソコンのものを探す。
  */
 let RESOLVER_BIN = process.env.SHARETIFY_RESOLVER ?? "yt-dlp";
 let PYTHON_BIN = process.env.SHARETIFY_PYTHON ?? "python3";

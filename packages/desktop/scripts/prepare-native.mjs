@@ -4,10 +4,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * 直に機械へ触れる部品を、配る先に合わせて入れ替える。
+ * 直にパソコンへ触れる部品を、配る先に合わせて入れ替える。
  *
- * 取り込むときは、動かしている機械の分しか入らない。
- * 別の機械向けに包むなら、その分を取ってきて置き換える必要がある。
+ * 取り込むときは、動かしているパソコンの分しか入らない。
+ * 別のパソコン向けに包むなら、その分を取ってきて置き換える必要がある。
  *
  *   mac  … 二つの作りを一つに束ねる (universal)
  *   win  … Windows 用のものに差し替える
@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..", "..", "..");
 
-/** 直に機械へ触れる部品の置き場を探す。 */
+/** 直にパソコンへ触れる部品の置き場を探す。 */
 function findNativeModule(name) {
   const base = join(root, "node_modules", ".pnpm");
   const dirs = execFileSync("ls", [base], { encoding: "utf8" })
@@ -51,7 +51,7 @@ if (target === "dev") {
   /*
    * 手元で動かすための形に戻す。
    *
-   * 配る支度をすると、この機械では読めない形に置き換わることがある。
+   * 配る支度をすると、このパソコンでは読めない形に置き換わることがある。
    * 支度のあとそのままにしておくと、次に手元で動かしたときに倒れる。
    */
   const arch = process.arch === "arm64" ? "arm64" : "x64";
