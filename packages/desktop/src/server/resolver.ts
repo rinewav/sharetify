@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { dirname, join } from "node:path";
+import { dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
   CollectionKind,
@@ -35,7 +35,17 @@ export function useToolchain(python: string | null, resolver: string | null): vo
   if (resolver) RESOLVER_BIN = resolver;
 }
 
-const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
+/*
+ * 外の仕掛けに渡す台本の置き場。
+ *
+ * 配るときは中身をひとまとめに包むが、その中は外の仕掛けから読めない。
+ * 読めるよう包みの外にも出してあるので、そちらを指す。
+ * 包んでいないときは、そのままの場所でよい。
+ */
+const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url)).replace(
+  `${sep}app.asar${sep}`,
+  `${sep}app.asar.unpacked${sep}`,
+);
 /** カタログ検索スクリプトの場所。 */
 const CATALOG_SCRIPT = join(SCRIPT_DIR, "ytmusic_search.py");
 /** アルバムなどの中身を取り出すスクリプト。 */
@@ -163,7 +173,18 @@ function stripNulls<T extends object>(value: T): T {
 export async function search(query: string, limit = 20): Promise<SearchResponse> {
   try {
     return await catalogSearch(query, limit);
-  } catch {
+  } catch (error) {
+    /*
+     * 落ちた理由を残す。
+     *
+     * 黙って代替へ移ると、見た目は「動画の一覧が出るだけ」になり、
+     * なぜそうなったのか辿れない。
+     */
+    console.warn(
+      `[node] カタログを引けませんでした: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
     // 代替経路では曲しか組み立てられない。まとまりは空で返す。
     return { tracks: await videoSearch(query, limit), albums: [], artists: [], playlists: [] };
   }
