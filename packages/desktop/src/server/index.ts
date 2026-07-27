@@ -8,6 +8,7 @@ import { cors } from "hono/cors";
 import {
   NODE_DEFAULT_PORT,
   NODE_ROUTES,
+  type DiscoverResponse,
   type LyricsResult,
   type NodeHealth,
   type ResolveResponse,
@@ -37,6 +38,8 @@ import { fetchLyrics } from "./lyrics.js";
 import { PeerHost } from "./peer.js";
 import {
   fetchCollection,
+  fetchDiscover,
+  fetchRadio,
   isResolverReady,
   resolveStreamUrl,
   ResolverFailure,
@@ -55,6 +58,9 @@ const VERSION = "0.1.0";
 
 /** 一度引いた歌詞の控え。曲を行き来するたびに問い合わせない。 */
 const lyricsCache = new Map<string, LyricsResult>();
+
+/** 汎用のおすすめの控え。中身の移り変わりが遅いので使い回す。 */
+let discoverCache: { at: number; value: DiscoverResponse } | null = null;
 
 export function createNodeApp(): Hono {
   const app = new Hono();
@@ -204,6 +210,32 @@ export function createNodeApp(): Hono {
   });
 
   app.get(NODE_ROUTES.cacheStatus, (c) => c.json({ entries: listEntries() }));
+
+  /** ある曲を種に、続けて流す曲を並べる。 */
+  app.get(NODE_ROUTES.radio, async (c) => {
+    const trackId = c.req.query("trackId")?.trim();
+    if (!trackId) return c.json({ error: "trackId is required" }, 400);
+
+    try {
+      return c.json(await fetchRadio(trackId, Number(c.req.query("limit") ?? 25)));
+    } catch (error) {
+      return c.json({ error: describe(error) }, 502);
+    }
+  });
+
+  /** 地域向けの汎用のおすすめ。移り変わりが遅いので少し長めに覚えておく。 */
+  app.get(NODE_ROUTES.discover, async (c) => {
+    const cached = discoverCache;
+    if (cached && Date.now() - cached.at < 30 * 60_000) return c.json(cached.value);
+
+    try {
+      const result = await fetchDiscover(Number(c.req.query("limit") ?? 6));
+      discoverCache = { at: Date.now(), value: result };
+      return c.json(result);
+    } catch (error) {
+      return c.json({ error: describe(error) }, 502);
+    }
+  });
 
   /*
    * 歌詞。

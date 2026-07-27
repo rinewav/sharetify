@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 import type {
   CollectionKind,
   CollectionResponse,
+  DiscoverResponse,
+  RadioResponse,
   SearchResponse,
   Track,
 } from "@musicshare/shared";
@@ -26,6 +28,8 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const CATALOG_SCRIPT = join(SCRIPT_DIR, "ytmusic_search.py");
 /** アルバムなどの中身を取り出すスクリプト。 */
 const COLLECTION_SCRIPT = join(SCRIPT_DIR, "ytmusic_collection.py");
+/** おすすめの材料を集めるスクリプト。 */
+const DISCOVER_SCRIPT = join(SCRIPT_DIR, "ytmusic_discover.py");
 
 export interface ResolverError {
   kind: "unavailable" | "failed";
@@ -238,6 +242,51 @@ async function videoSearch(query: string, limit: number): Promise<Track[]> {
     });
   }
   return tracks;
+}
+
+/**
+ * ある曲を種にして、続けて流す曲を並べる。
+ * これがおすすめの主役。種の選び方だけこちらで決める。
+ */
+export async function fetchRadio(trackId: string, limit = 25): Promise<RadioResponse> {
+  const stdout = await run(PYTHON_BIN, [DISCOVER_SCRIPT, "radio", trackId, String(limit)], 45_000);
+  const parsed = JSON.parse(stdout) as Partial<RadioResponse> & {
+    error?: string;
+    message?: string;
+  };
+
+  if (parsed.error || !parsed.tracks) {
+    throw new ResolverFailure({
+      kind: parsed.error === "unavailable" ? "unavailable" : "failed",
+      message: parsed.message ?? "続けて流す曲を用意できませんでした。",
+    });
+  }
+  return { tracks: parsed.tracks.map(normalizeTrack) };
+}
+
+/** 地域向けの汎用のおすすめ。新規の入口として使う。 */
+export async function fetchDiscover(limit = 6): Promise<DiscoverResponse> {
+  const stdout = await run(PYTHON_BIN, [DISCOVER_SCRIPT, "home", "", String(limit)], 45_000);
+  const parsed = JSON.parse(stdout) as Partial<DiscoverResponse> & {
+    error?: string;
+    message?: string;
+  };
+
+  if (parsed.error || !parsed.sections) {
+    throw new ResolverFailure({
+      kind: parsed.error === "unavailable" ? "unavailable" : "failed",
+      message: parsed.message ?? "おすすめを取得できませんでした。",
+    });
+  }
+
+  return {
+    sections: parsed.sections.map((section) => ({
+      title: section.title,
+      items: section.items.map((item) =>
+        item.type === "track" ? { ...item, track: normalizeTrack(item.track) } : stripNulls(item),
+      ),
+    })),
+  };
 }
 
 /**

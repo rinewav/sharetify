@@ -1,111 +1,145 @@
-import { Play, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Play, Search, Sparkles } from "lucide-react";
+import type { DiscoverSection, Track } from "@musicshare/shared";
 import { Artwork } from "../components/Artwork.js";
+import { formatCount } from "../lib/format.js";
 import { useLibrary } from "../lib/library-store.js";
+import { nodeDiscover, nodeRadio } from "../lib/node-client.js";
+import {
+  formatListeningTime,
+  forgottenFavorites,
+  longListens,
+  monthlyRecap,
+  pickSeeds,
+  recentTracks,
+  topArtists,
+  type Recap,
+} from "../lib/play-history.js";
 import { usePlayer } from "../lib/player-store.js";
 import type { Route } from "../lib/routes.js";
 
 interface Props {
   onNavigate: (route: Route) => void;
+  nodeOnline: boolean;
 }
 
-export function HomeView({ onNavigate }: Props) {
+/**
+ * ホーム。
+ *
+ * 上に行くほど自分の跡が濃く、下に行くほど広い世界になるよう並べる。
+ * 何を勧めるかは自前で考えず、聴いた跡から「種」を選んで供給元に委ねる。
+ * 跡が無いうちは押しつけず、探す入口だけ出す。
+ */
+export function HomeView({ onNavigate, nodeOnline }: Props) {
   const { playlists, groups, follows, user } = useLibrary();
   const playQueue = usePlayer((s) => s.playQueue);
 
-  // 中身のあるものを先に出す。空の並びを上に置いても手掛かりにならない。
-  const filled = [...playlists].sort((a, b) => b.tracks.length - a.tracks.length);
-  const recent = [...playlists].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const recent = useMemo(() => recentTracks(12), []);
+  const forgotten = useMemo(() => forgottenFavorites(12), []);
+  const longOnes = useMemo(() => longListens(12), []);
+  const recap = useMemo(() => monthlyRecap(), []);
+  const seeds = useMemo(() => pickSeeds(2), []);
 
-  if (playlists.length === 0) {
-    return (
-      <div className="px-4 pt-20 pb-8 sm:px-6">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-          {greetingForNow()}
-          {user ? `、${user.displayName}` : ""}
-        </h1>
-        <div className="mt-8 rounded-lg bg-surface p-6">
+  const mixes = useMixes(seeds, nodeOnline);
+  const discover = useDiscover(nodeOnline);
+
+  const recentPlaylists = [...playlists].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const hasHistory = recent.length > 0;
+
+  const openArtist = (id: string, name: string) =>
+    onNavigate({ name: "collection", kind: "artist", id, title: name });
+
+  return (
+    <div className="px-4 pt-20 pb-8 sm:px-6">
+      <h1 className="animate-rise text-2xl font-bold tracking-tight sm:text-3xl">
+        {greetingForNow()}
+        {user ? `、${user.displayName}` : ""}
+      </h1>
+
+      {!hasHistory && playlists.length === 0 && (
+        <div className="animate-rise mt-8 rounded-lg bg-surface p-6">
           <h2 className="text-lg font-semibold">まずは一曲さがす</h2>
           <p className="mt-2 text-sm text-ink-muted">
-            検索して曲の行の ＋ を押すと、プレイリストに入れられます。
-            グループを作れば、その中で友だちと共有できます。
+            聴いた曲をもとに、次に流すものを組み立てます。
+            検索して曲の行の ＋ を押すと、プレイリストにも入れられます。
           </p>
           <button
             type="button"
             onClick={() => onNavigate({ name: "search" })}
-            className="mt-5 flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-accent-ink transition hover:brightness-110"
+            className="press mt-5 flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-accent-ink transition hover:brightness-110"
           >
             <Search className="size-4" />
             検索へ
           </button>
         </div>
-      </div>
-    );
-  }
+      )}
 
-  return (
-    <div className="px-4 pt-20 pb-8 sm:px-6">
-      <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-        {greetingForNow()}
-        {user ? `、${user.displayName}` : ""}
-      </h1>
-
-      {/*
-       * 横長タイル。よく開くものへの近道。
-       * 狭い画面で 2 列に詰めると、名前が 1 文字まで削られて用をなさない。
-       */}
-      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {filled.slice(0, 6).map((playlist) => (
-          <button
-            key={playlist.id}
-            type="button"
-            onClick={() => onNavigate({ name: "playlist", playlistId: playlist.id })}
-            className="group flex items-center gap-3 overflow-hidden rounded-md bg-surface-2 pr-3 text-left transition hover:bg-surface-3"
-          >
-            <Artwork
-              seed={playlist.id}
-              label={playlist.name}
-              src={playlist.tracks[0]?.artworkUrl}
-              className="size-16 text-2xl"
-              rounded="rounded-none"
-            />
-            <span className="min-w-0 flex-1 truncate text-sm font-semibold">
-              {playlist.name}
-            </span>
-            {playlist.tracks.length > 0 && (
-              <span
-                onClick={(event) => {
-                  event.stopPropagation();
-                  playQueue(playlist.tracks, 0);
-                }}
-                className="grid size-10 shrink-0 translate-y-1 place-items-center rounded-full bg-accent text-accent-ink opacity-0 shadow-lg transition group-hover:translate-y-0 group-hover:opacity-100"
-              >
-                <Play className="size-4 translate-x-px fill-current" />
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      <Section title="最近さわったもの">
-        {recent.map((playlist) => {
-          const group = playlist.groupId
-            ? groups.find((g) => g.id === playlist.groupId)
-            : undefined;
-          return (
-            <Card
+      {/* 自分の書棚への近道。いちばん手が伸びる場所に置く。 */}
+      {recentPlaylists.length > 0 && (
+        <div className="animate-rise mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {recentPlaylists.slice(0, 6).map((playlist) => (
+            <button
               key={playlist.id}
-              seed={playlist.id}
-              title={playlist.name}
-              subtitle={group ? `共有 · ${group.name}` : `${playlist.tracks.length} 曲`}
-              artworkUrl={playlist.tracks[0]?.artworkUrl}
+              type="button"
               onClick={() => onNavigate({ name: "playlist", playlistId: playlist.id })}
-              onPlay={() => playQueue(playlist.tracks, 0)}
-            />
-          );
-        })}
-      </Section>
+              className="press group flex items-center gap-3 overflow-hidden rounded-md bg-surface-2 pr-3 text-left transition hover:bg-surface-3"
+            >
+              <Artwork
+                seed={playlist.id}
+                label={playlist.name}
+                src={playlist.tracks[0]?.artworkUrl}
+                className="size-16 text-2xl"
+                rounded="rounded-none"
+              />
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                {playlist.name}
+              </span>
+              {playlist.tracks.length > 0 && (
+                <span
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    playQueue(playlist.tracks, 0);
+                  }}
+                  className="grid size-10 shrink-0 translate-y-1 place-items-center rounded-full bg-accent text-accent-ink opacity-0 shadow-lg transition group-hover:translate-y-0 group-hover:opacity-100"
+                >
+                  <Play className="size-4 translate-x-px fill-current" />
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {/* 気に入った人をここにも出す。次に何を聴くかの手掛かりになる。 */}
+      <TrackSection title="もう一度聴く" tracks={recent} onPlayAll={playQueue} />
+
+      {mixes.map((mix) => (
+        <TrackSection
+          key={mix.seed.id}
+          title={`${mix.seed.artist} に基づくミックス`}
+          hint="聴いた跡から選んだ種"
+          tracks={mix.tracks}
+          onPlayAll={playQueue}
+        />
+      ))}
+
+      <NewReleases follows={follows} nodeOnline={nodeOnline} onNavigate={onNavigate} />
+
+      <TrackSection
+        title="また聴きたい頃"
+        hint="よく聴いていたが、しばらく開いていないもの"
+        tracks={forgotten}
+        onPlayAll={playQueue}
+      />
+
+      <TrackSection
+        title="じっくり聴く"
+        hint="長めの一本"
+        tracks={longOnes}
+        onPlayAll={playQueue}
+      />
+
+      {recap && <RecapCard recap={recap} onOpenArtist={openArtist} onPlayAll={playQueue} />}
+
       {follows.length > 0 && (
         <Section title="フォロー中">
           {follows.map((artist) => (
@@ -116,25 +150,197 @@ export function HomeView({ onNavigate }: Props) {
               subtitle="アーティスト"
               artworkUrl={artist.artworkUrl}
               round
-              onClick={() =>
-                onNavigate({
-                  name: "collection",
-                  kind: "artist",
-                  id: artist.id,
-                  title: artist.name,
-                })
-              }
+              onClick={() => openArtist(artist.id, artist.name)}
             />
           ))}
         </Section>
       )}
+
+      {/* いちばん外側。自分の跡とは関係なく、広い世界を見せる。 */}
+      {discover.map((section) => (
+        <Section key={section.title} title={section.title}>
+          {section.items.slice(0, 12).map((item, index) =>
+            item.type === "track" ? (
+              <Card
+                key={`${item.track.id}-${index}`}
+                seed={item.track.id}
+                title={item.track.title}
+                subtitle={item.track.artist}
+                artworkUrl={item.track.artworkUrl}
+                onClick={() => playQueue([item.track], 0)}
+                onPlay={() => playQueue([item.track], 0)}
+              />
+            ) : (
+              <Card
+                key={`${item.id}-${index}`}
+                seed={item.id}
+                title={item.title}
+                subtitle={item.subtitle ?? (item.type === "album" ? "アルバム" : "プレイリスト")}
+                artworkUrl={item.artworkUrl}
+                onClick={() =>
+                  onNavigate({
+                    name: "collection",
+                    kind: item.type === "album" ? "album" : "playlist",
+                    id: item.id,
+                    title: item.title,
+                  })
+                }
+              />
+            ),
+          )}
+        </Section>
+      ))}
     </div>
+  );
+}
+
+/* ------------------------------ 部品 ------------------------------ */
+
+function TrackSection({
+  title,
+  hint,
+  tracks,
+  onPlayAll,
+}: {
+  title: string;
+  hint?: string;
+  tracks: Track[];
+  onPlayAll: (tracks: Track[], index: number) => void;
+}) {
+  if (tracks.length === 0) return null;
+  return (
+    <section className="animate-rise mt-8">
+      <div className="mb-4 flex items-baseline justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight sm:text-2xl">{title}</h2>
+          {hint && <p className="mt-0.5 text-xs text-ink-faint">{hint}</p>}
+        </div>
+        <button
+          type="button"
+          onClick={() => onPlayAll(tracks, 0)}
+          className="press shrink-0 rounded-full bg-surface-3 px-4 py-1.5 text-xs font-medium text-ink-muted transition hover:text-ink"
+        >
+          再生
+        </button>
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5 xl:grid-cols-6">
+        {tracks.map((track, index) => (
+          <Card
+            key={`${track.id}-${index}`}
+            seed={track.id}
+            title={track.title}
+            subtitle={track.artist}
+            artworkUrl={track.artworkUrl}
+            onClick={() => onPlayAll(tracks, index)}
+            onPlay={() => onPlayAll(tracks, index)}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function RecapCard({
+  recap,
+  onOpenArtist,
+  onPlayAll,
+}: {
+  recap: Recap;
+  onOpenArtist: (id: string, name: string) => void;
+  onPlayAll: (tracks: Track[], index: number) => void;
+}) {
+  return (
+    <section className="animate-rise mt-8 overflow-hidden rounded-lg bg-surface p-5 sm:p-6">
+      <div className="flex items-center gap-2 text-xs font-semibold text-accent">
+        <Sparkles className="size-4" />
+        {recap.label}
+      </div>
+      <div className="mt-3 flex flex-wrap items-baseline gap-x-6 gap-y-1">
+        <span className="text-3xl font-black tracking-tight">
+          {formatListeningTime(recap.totalMs)}
+        </span>
+        <span className="text-sm text-ink-muted">{recap.trackCount} 回の再生</span>
+      </div>
+
+      {recap.topArtists.length > 0 && (
+        <div className="mt-5">
+          <div className="mb-2 text-xs font-semibold text-ink-faint">よく聴いた人</div>
+          <div className="flex flex-wrap gap-2">
+            {recap.topArtists.map((artist) => (
+              <button
+                key={artist.name}
+                type="button"
+                onClick={() => artist.id && onOpenArtist(artist.id, artist.name)}
+                disabled={!artist.id}
+                className="press flex items-center gap-2 rounded-full bg-surface-2 py-1 pr-3 pl-1 text-sm transition hover:bg-surface-3 disabled:cursor-default"
+              >
+                <Artwork
+                  seed={artist.name}
+                  label={artist.name}
+                  src={artist.artworkUrl}
+                  className="size-7"
+                  rounded="rounded-full"
+                />
+                <span className="max-w-[10rem] truncate">{artist.name}</span>
+                <span className="text-xs text-ink-faint">{artist.count}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {recap.topTracks.length > 0 && (
+        <button
+          type="button"
+          onClick={() => onPlayAll(recap.topTracks, 0)}
+          className="press mt-5 flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-accent-ink transition hover:brightness-110"
+        >
+          <Play className="size-4 fill-current" />
+          この期間のトップを流す
+        </button>
+      )}
+    </section>
+  );
+}
+
+function NewReleases({
+  follows,
+  nodeOnline,
+  onNavigate,
+}: {
+  follows: { id: string; name: string }[];
+  nodeOnline: boolean;
+  onNavigate: (route: Route) => void;
+}) {
+  const releases = useFollowedReleases(follows, nodeOnline);
+  if (releases.length === 0) return null;
+
+  return (
+    <Section title="フォロー中の新着">
+      {releases.map((release) => (
+        <Card
+          key={release.id}
+          seed={release.id}
+          title={release.title}
+          subtitle={[release.artist, release.year].filter(Boolean).join(" · ")}
+          artworkUrl={release.artworkUrl}
+          onClick={() =>
+            onNavigate({
+              name: "collection",
+              kind: "album",
+              id: release.id,
+              title: release.title,
+            })
+          }
+        />
+      ))}
+    </Section>
   );
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="mt-8">
+    <section className="animate-rise mt-8">
       <h2 className="mb-4 text-xl font-bold tracking-tight sm:text-2xl">{title}</h2>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5 xl:grid-cols-6">
         {children}
@@ -164,7 +370,7 @@ function Card({
     <button
       type="button"
       onClick={onClick}
-      className="group relative min-w-0 rounded-lg bg-surface p-3 text-left transition hover:bg-surface-3 sm:p-4"
+      className="press group relative min-w-0 rounded-lg bg-surface p-3 text-left transition hover:bg-surface-3 sm:p-4"
     >
       <div className="relative">
         <Artwork
@@ -190,6 +396,121 @@ function Card({
       <div className="mt-1 truncate text-xs text-ink-muted">{subtitle}</div>
     </button>
   );
+}
+
+/* ------------------------------ 取得 ------------------------------ */
+
+interface Mix {
+  seed: Track;
+  tracks: Track[];
+}
+
+/** 聴いた跡から選んだ種で、続けて流す曲を組む。 */
+function useMixes(seeds: Track[], nodeOnline: boolean): Mix[] {
+  const [mixes, setMixes] = useState<Mix[]>([]);
+
+  useEffect(() => {
+    if (!nodeOnline || seeds.length === 0) return;
+    let cancelled = false;
+
+    void Promise.all(
+      seeds.map(async (seed) => {
+        try {
+          const { tracks } = await nodeRadio(seed.id, 12);
+          // 先頭は種そのものなので外す。同じ曲が並ぶと勧められた感じが薄い。
+          return { seed, tracks: tracks.filter((t) => t.id !== seed.id) };
+        } catch {
+          return null;
+        }
+      }),
+    ).then((results) => {
+      if (cancelled) return;
+      setMixes(results.filter((m): m is Mix => m !== null && m.tracks.length > 0));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [nodeOnline, seeds.map((s) => s.id).join(",")]);
+
+  return mixes;
+}
+
+interface Release {
+  id: string;
+  title: string;
+  artist: string;
+  year?: string;
+  artworkUrl?: string;
+}
+
+/** フォローしている人の、新しいリリースを集める。 */
+function useFollowedReleases(
+  follows: { id: string; name: string }[],
+  nodeOnline: boolean,
+): Release[] {
+  const [releases, setReleases] = useState<Release[]>([]);
+
+  useEffect(() => {
+    if (!nodeOnline || follows.length === 0) return;
+    let cancelled = false;
+
+    // 全員分を一度に引くと待ちが長い。手前の数人で足りる。
+    const targets = follows.slice(0, 4);
+
+    void Promise.all(
+      targets.map(async (artist) => {
+        try {
+          const { nodeCollection } = await import("../lib/node-client.js");
+          const page = await nodeCollection("artist", artist.id);
+          return [...(page.singles ?? []), ...(page.albums ?? [])].map((release) => ({
+            id: release.id,
+            title: release.title,
+            artist: release.artist || artist.name,
+            year: release.year,
+            artworkUrl: release.artworkUrl,
+          }));
+        } catch {
+          return [];
+        }
+      }),
+    ).then((lists) => {
+      if (cancelled) return;
+      const merged = lists.flat();
+      merged.sort((a, b) => Number(b.year ?? 0) - Number(a.year ?? 0));
+      // 同じものが両方に入っていることがあるので、識別子で間引く。
+      const seen = new Set<string>();
+      setReleases(merged.filter((r) => !seen.has(r.id) && seen.add(r.id)).slice(0, 12));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [nodeOnline, follows.map((f) => f.id).join(",")]);
+
+  return releases;
+}
+
+/** 地域向けの汎用のおすすめ。 */
+function useDiscover(nodeOnline: boolean): DiscoverSection[] {
+  const [sections, setSections] = useState<DiscoverSection[]>([]);
+
+  useEffect(() => {
+    if (!nodeOnline) return;
+    let cancelled = false;
+
+    void nodeDiscover()
+      .then((result) => {
+        if (!cancelled) setSections(result.sections);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [nodeOnline]);
+
+  return sections;
 }
 
 function greetingForNow(): string {

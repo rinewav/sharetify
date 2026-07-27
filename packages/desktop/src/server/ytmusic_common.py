@@ -61,6 +61,22 @@ def parse_count(value: str | int | None) -> int | None:
     return int(number * _COUNT_SCALE.get(suffix, 1))
 
 
+def parse_length(value: str | None) -> int | None:
+    """"4:24" や "1:02:03" のような表記を秒数に直す。"""
+    if not value:
+        return None
+    parts = value.strip().split(":")
+    try:
+        numbers = [int(p) for p in parts]
+    except ValueError:
+        return None
+
+    seconds = 0
+    for number in numbers:
+        seconds = seconds * 60 + number
+    return seconds
+
+
 def to_track(
     entry: dict,
     fallback_artwork: str | None = None,
@@ -72,7 +88,9 @@ def to_track(
     if not video_id or not title:
         return None
 
-    seconds = entry.get("duration_seconds")
+    # 経路によって入っている名前が違う。続けて流す曲の一覧では
+    # 単数形の thumbnail と、"4:24" 形式の length で返ってくる。
+    seconds = entry.get("duration_seconds") or parse_length(entry.get("length"))
     album = entry.get("album")
     album_name = album.get("name") if isinstance(album, dict) else album
     album_id = album.get("id") if isinstance(album, dict) else None
@@ -86,7 +104,8 @@ def to_track(
         # アルバムの中の曲は個別のジャケットを持たないことがある。表紙で補う。
         "album": album_name or fallback_album,
         "durationMs": int(seconds * 1000) if seconds else None,
-        "artworkUrl": pick_thumbnail(entry.get("thumbnails")) or fallback_artwork,
+        "artworkUrl": pick_thumbnail(entry.get("thumbnails") or entry.get("thumbnail"))
+        or fallback_artwork,
         "artistId": first_artist_id(entry),
         "albumId": album_id or fallback_album_id,
     }

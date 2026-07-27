@@ -2,8 +2,10 @@ import type {
   CacheStatusResponse,
   CollectionKind,
   CollectionResponse,
+  DiscoverResponse,
   LyricsResult,
   NodeHealth,
+  RadioResponse,
   ResolveResponse,
   SearchResponse,
   Track,
@@ -128,6 +130,17 @@ export async function fetchTrackForOffline(trackId: string): Promise<Blob> {
   const response = await fetch(streamUrl(trackId));
   if (!response.ok) throw new Error("曲を取得できませんでした。");
   return await response.blob();
+}
+
+/** ある曲を種に、続けて流す曲を並べる。おすすめの主役。 */
+export function nodeRadio(trackId: string, limit = 25, signal?: AbortSignal) {
+  const params = new URLSearchParams({ trackId, limit: String(limit) });
+  return getJson<RadioResponse>(`/api/radio?${params}`, signal);
+}
+
+/** 地域向けの汎用のおすすめ。 */
+export function nodeDiscover(signal?: AbortSignal) {
+  return getJson<DiscoverResponse>("/api/discover", signal);
 }
 
 /** 歌詞を探す。時刻付きが見つかれば再生に合わせて送れる。 */

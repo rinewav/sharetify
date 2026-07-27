@@ -109,7 +109,7 @@ export function CollectionView({
           type="button"
           onClick={() => playQueue(tracks, 0)}
           disabled={tracks.length === 0}
-          className="grid size-14 place-items-center rounded-full bg-accent text-accent-ink shadow-xl shadow-black/30 transition hover:scale-105 disabled:opacity-40"
+          className="press grid size-14 place-items-center rounded-full bg-accent text-accent-ink shadow-xl shadow-black/30 transition hover:scale-105 disabled:opacity-40"
           aria-label="再生"
         >
           <Play className="size-6 translate-x-0.5 fill-current" />

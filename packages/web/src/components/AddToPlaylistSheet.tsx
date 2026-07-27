@@ -31,8 +31,8 @@ export function AddToPlaylistSheet({ track, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/70 p-3 sm:items-center">
-      <div className="flex max-h-[70vh] w-full max-w-sm flex-col rounded-2xl bg-surface p-5 shadow-2xl">
+    <div className="animate-fade fixed inset-0 z-30 flex items-end justify-center bg-black/70 p-3 sm:items-center">
+      <div className="animate-slide-up flex max-h-[70vh] w-full max-w-sm flex-col rounded-2xl bg-surface p-5 shadow-2xl">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h2 className="text-lg font-bold">プレイリストに追加</h2>

@@ -43,7 +43,7 @@ export function NowPlayingView({ onClose, onOpenCollection, onOpenQueue }: Props
 
   return (
     <div
-      className="fixed inset-0 z-40 flex flex-col"
+      className="animate-cover-up fixed inset-0 z-40 flex flex-col"
       style={{
         // ジャケットの色を背景に溶かす。曲ごとに雰囲気が変わる。
         background: `linear-gradient(180deg, ${artworkGradient(track.id)

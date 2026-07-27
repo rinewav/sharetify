@@ -55,6 +55,10 @@ interface PlayerState {
 
   playQueue: (tracks: Track[], startIndex: number) => void;
   playTrack: (track: Track) => void;
+  /** いま鳴っている曲の直後に差し込む。 */
+  playNext: (track: Track) => void;
+  /** 並びの最後に足す。 */
+  enqueue: (track: Track) => void;
   toggle: () => void;
   next: () => void;
   prev: () => void;
@@ -156,6 +160,28 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       });
     }
     backend?.play();
+  },
+
+  playNext: (track) => {
+    const { queue, index } = get();
+    if (queue.length === 0) {
+      get().playQueue([track], 0);
+      return;
+    }
+    // 同じ曲が並びに残っていても、差し込んだ位置を優先させる。
+    const without = queue.filter((t, i) => i === index || t.id !== track.id);
+    const at = without.findIndex((_, i) => i === index) + 1;
+    set({ queue: [...without.slice(0, at), track, ...without.slice(at)] });
+  },
+
+  enqueue: (track) => {
+    const { queue } = get();
+    if (queue.length === 0) {
+      get().playQueue([track], 0);
+      return;
+    }
+    if (queue.some((t) => t.id === track.id)) return;
+    set({ queue: [...queue, track] });
   },
 
   toggle: () => {

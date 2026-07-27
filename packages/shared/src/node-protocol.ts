@@ -112,10 +112,40 @@ export type LyricsResult =
   | { kind: "instrumental"; source: string; searchUrl?: string }
   | { kind: "none"; searchUrl?: string };
 
+/* ------------------------------------------------------------------ *
+ * おすすめ
+ *
+ * 何を勧めるかを自前で考えるのではなく、手掛かり (種) だけこちらで決め、
+ * 並べるのは供給元の推薦に任せる。そのほうが精度が出るし、
+ * こちらで好みを溜め込まずに済む。
+ * ------------------------------------------------------------------ */
+
+/** ある曲を種にして、続けて流す曲を並べたもの。 */
+export interface RadioResponse {
+  tracks: Track[];
+}
+
+export type DiscoverItem =
+  | { type: "track"; track: Track }
+  | { type: "playlist"; id: string; title: string; subtitle?: string; artworkUrl?: string }
+  | { type: "album"; id: string; title: string; subtitle?: string; artworkUrl?: string };
+
+export interface DiscoverSection {
+  title: string;
+  items: DiscoverItem[];
+}
+
+/** 地域向けの汎用のおすすめ。自分の好みは反映されない。 */
+export interface DiscoverResponse {
+  sections: DiscoverSection[];
+}
+
 export const NODE_ROUTES = {
   health: "/api/health",
   search: "/api/search",
   lyrics: "/api/lyrics",
+  radio: "/api/radio",
+  discover: "/api/discover",
   /** アルバム・プレイリスト・アーティストの中身。 */
   collection: "/api/collection",
   resolve: "/api/resolve",

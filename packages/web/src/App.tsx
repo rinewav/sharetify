@@ -91,7 +91,7 @@ export default function App() {
   const content = useMemo(() => {
     switch (route.name) {
       case "home":
-        return <HomeView onNavigate={navigate} />;
+        return <HomeView onNavigate={navigate} nodeOnline={nodeOnline} />;
       case "search":
         return (
           <SearchView
@@ -216,7 +216,10 @@ export default function App() {
             </div>
           )}
 
-          <div className="scroll-area min-h-0 flex-1">{content}</div>
+          {/* 移った先が下から入る。切り替わったことが目で追える。 */}
+          <div key={routeKey(route)} className="scroll-area animate-page min-h-0 flex-1">
+            {content}
+          </div>
         </main>
 
         {panelOpen && (
@@ -290,6 +293,13 @@ export default function App() {
       {layoutProbeEnabled() && <LayoutProbe />}
     </div>
   );
+}
+
+/** 画面が切り替わったことを見分けるための鍵。同じ場所なら動かさない。 */
+function routeKey(route: Route): string {
+  if (route.name === "playlist") return `playlist:${route.playlistId}`;
+  if (route.name === "collection") return `collection:${route.kind}:${route.id}`;
+  return route.name;
 }
 
 /**

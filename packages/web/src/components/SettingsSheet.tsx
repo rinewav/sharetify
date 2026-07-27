@@ -22,8 +22,8 @@ export function SettingsSheet({ onClose, onOpenPairing, nodeOnline }: Props) {
   const { user, signOut } = useLibrary();
 
   return (
-    <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/70 p-3 sm:items-center">
-      <div className="flex max-h-[85vh] w-full max-w-md flex-col rounded-2xl bg-surface p-5 shadow-2xl">
+    <div className="animate-fade fixed inset-0 z-30 flex items-end justify-center bg-black/70 p-3 sm:items-center">
+      <div className="animate-slide-up flex max-h-[85vh] w-full max-w-md flex-col rounded-2xl bg-surface p-5 shadow-2xl">
         <div className="flex items-start justify-between gap-4">
           <h2 className="text-lg font-bold">設定</h2>
           <button

@@ -96,6 +96,117 @@ body {
   }
 }
 
+/*
+ * 動き。
+ *
+ * 出入りが唐突だと、何が起きたのか目で追えない。
+ * 短く、方向を持たせて、次にどこを見ればいいかを示す。
+ * 動きを減らす設定にしている人には、いっさい動かさない。
+ */
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes cover-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/** 下から浮かび上がる。一覧の見出しや区画に。 */
+@utility animate-rise {
+  animation: rise 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/** そっと現れる。覆いの背景に。 */
+@utility animate-fade {
+  animation: fade 0.18s ease-out both;
+}
+
+/** 手前にせり出す。小さな窓に。 */
+@utility animate-slide-up {
+  animation: slide-up 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/** 画面を下から覆う。全画面の再生に。 */
+@utility animate-cover-up {
+  animation: cover-up 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/** 弾けて出る。右クリックの品書きに。 */
+@utility animate-pop {
+  animation: pop 0.14s ease-out both;
+}
+
+/** 押した手応え。触れている間だけ少し沈む。 */
+@utility press {
+  transition:
+    transform 0.12s ease-out,
+    background-color 0.15s ease-out,
+    color 0.15s ease-out;
+
+  &:active {
+    transform: scale(0.97);
+  }
+}
+
+/** 画面の切り替え。移った先が下から入ってくる。 */
+@utility animate-page {
+  animation: rise 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* 表示の境目を確かめるための枠。実測表示を出しているときだけ使う。 */
 .debug-bounds-body {
   outline: 2px solid #ff00aa;

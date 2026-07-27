@@ -26,7 +26,7 @@ export function ResultCard({
     <button
       type="button"
       onClick={onOpen}
-      className="group relative min-w-0 rounded-lg bg-surface p-3 text-left transition hover:bg-surface-3 sm:p-4"
+      className="press group relative min-w-0 rounded-lg bg-surface p-3 text-left transition hover:bg-surface-3 sm:p-4"
     >
       <div className="relative">
         <Artwork
