@@ -41,7 +41,13 @@ export default function App() {
 
   const inSession = useSession((s) => s.inSession);
   const playerError = usePlayer((s) => s.error);
-  const { user, playlistById, error: libraryError, refresh } = useLibrary();
+  /*
+   * 並びは中身そのものを見る。
+   *
+   * 引く関数だけを見ていると、その関数は書き換わらないので、
+   * 中の曲が増減しても開いている画面が古いままになる。
+   */
+  const { user, playlists, error: libraryError } = useLibrary();
 
   const peerStatus = useAutoPairing();
   const health = useNodeHealth(peerStatus);
@@ -135,7 +141,7 @@ export default function App() {
           />
         );
       case "playlist": {
-        const playlist = playlistById(route.playlistId);
+        const playlist = playlists.find((p) => p.id === route.playlistId);
         if (!playlist) {
           return <div className="p-6 pt-24 text-ink-muted">見つかりません</div>;
         }
@@ -149,7 +155,7 @@ export default function App() {
         );
       }
     }
-  }, [route, health, cacheStates, playlistById]);
+  }, [route, health, cacheStates, playlists]);
 
   const banner = playerError ?? libraryError ?? (health && !health.resolverReady ? health.resolverMessage : null);
 
