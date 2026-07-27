@@ -110,8 +110,12 @@ export default function App() {
   }, [route, health, cacheStates]);
 
   return (
-    // 画面の縁を避ける余白は body が持っている。ここでは足さない。
-    <div className="flex h-full flex-col bg-base">
+    /*
+     * 上端はノッチを避けて押し下げる。
+     * この下は角丸の面が並ぶ作りなので、上だけは余白を入れて問題ない。
+     * 下端は画面に接する下部ナビが自分で避ける。
+     */
+    <div className="flex h-full flex-col bg-base pt-[env(safe-area-inset-top)]">
       <div className="flex min-h-0 flex-1 gap-2 p-2">
         <div className="hidden md:block">
           <Sidebar

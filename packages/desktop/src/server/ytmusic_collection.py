@@ -7,67 +7,24 @@
 from __future__ import annotations
 
 import json
-import re
 import sys
 import warnings
 
 warnings.filterwarnings("ignore")
 
-_SIZE_IN_URL = re.compile(r"=w\d+-h\d+")
-_ARTWORK_SIZE = 544
+sys.path.insert(0, __file__.rsplit("/", 1)[0])
+
+from ytmusic_common import (  # noqa: E402
+    first_artist_id,
+    parse_count,
+    pick_thumbnail,
+    to_track,
+)
 
 
-def pick_thumbnail(thumbnails: list[dict] | None) -> str | None:
-    if not thumbnails:
-        return None
-    best = max(thumbnails, key=lambda t: t.get("width") or 0)
-    url = best.get("url")
-    if not url:
-        return None
-    return _SIZE_IN_URL.sub(f"=w{_ARTWORK_SIZE}-h{_ARTWORK_SIZE}", url)
-
-
-def join_artists(entry: dict) -> str:
-    names = [a.get("name") for a in entry.get("artists") or [] if a.get("name")]
-    return "、".join(names) if names else "不明"
-
-
-def first_artist_id(entry: dict) -> str | None:
-    for artist in entry.get("artists") or []:
-        if artist.get("id"):
-            return artist["id"]
-    return None
-
-
-def to_track(
-    entry: dict,
-    fallback_artwork: str | None,
-    fallback_album: str | None,
-    fallback_album_id: str | None = None,
-) -> dict | None:
-    video_id = entry.get("videoId")
-    title = entry.get("title")
-    if not video_id or not title:
-        return None
-
-    seconds = entry.get("duration_seconds")
-    album = entry.get("album")
-    album_name = album.get("name") if isinstance(album, dict) else album
-    album_id = album.get("id") if isinstance(album, dict) else None
-
-    return {
-        "id": video_id,
-        "sourceKind": "remote",
-        "sourceId": video_id,
-        "title": title,
-        "artist": join_artists(entry),
-        # アルバムの中の曲は個別のジャケットを持たないことがある。表紙で補う。
-        "album": album_name or fallback_album,
-        "durationMs": int(seconds * 1000) if seconds else None,
-        "artworkUrl": pick_thumbnail(entry.get("thumbnails")) or fallback_artwork,
-        "artistId": first_artist_id(entry),
-        "albumId": album_id or fallback_album_id,
-    }
+def normalize_playlist_id(playlist_id: str) -> str:
+    """検索結果の ID は VL 始まりのことがある。曲を引くときは外す。"""
+    return playlist_id[2:] if playlist_id.startswith("VL") else playlist_id
 
 
 def fetch_album(client, browse_id: str) -> dict:
@@ -81,6 +38,7 @@ def fetch_album(client, browse_id: str) -> dict:
         for t in (to_track(e, artwork, title, browse_id) for e in data.get("tracks") or [])
         if t is not None
     ]
+
     # 副題のアーティストから、その人のページへ辿れるようにする。
     artist_id = first_artist_id(data)
 
@@ -96,17 +54,13 @@ def fetch_album(client, browse_id: str) -> dict:
 
 
 def fetch_playlist(client, playlist_id: str) -> dict:
-    # 検索結果の ID は VL 始まりのことがある。曲を引くときは外す。
-    normalized = playlist_id[2:] if playlist_id.startswith("VL") else playlist_id
-    data = client.get_playlist(normalized, limit=200)
+    data = client.get_playlist(normalize_playlist_id(playlist_id), limit=300)
     artwork = pick_thumbnail(data.get("thumbnails"))
     title = data.get("title") or "プレイリスト"
     author = data.get("author")
     author_name = author.get("name") if isinstance(author, dict) else author
 
-    tracks = [
-        t for t in (to_track(e, artwork, None) for e in data.get("tracks") or []) if t is not None
-    ]
+    tracks = [t for t in (to_track(e, artwork) for e in data.get("tracks") or []) if t is not None]
     return {
         "kind": "playlist",
         "id": playlist_id,
@@ -122,16 +76,36 @@ def fetch_artist(client, browse_id: str) -> dict:
     artwork = pick_thumbnail(data.get("thumbnails"))
     title = data.get("name") or "アーティスト"
 
-    # 代表曲がそのまま入っている。まずはそれを並べる。
-    songs = (data.get("songs") or {}).get("results") or []
-    tracks = [t for t in (to_track(e, artwork, None) for e in songs) if t is not None]
+    songs = data.get("songs") or {}
+
+    # 画面に出ているのは代表数曲だけで、曲の長さも入っていない。
+    # 全曲がまとまったプレイリストが別にあるので、そちらを引き直す。
+    tracks: list[dict] = []
+    playlist_id = songs.get("browseId")
+    if playlist_id:
+        try:
+            full = client.get_playlist(normalize_playlist_id(playlist_id), limit=300)
+            tracks = [
+                t for t in (to_track(e, artwork) for e in full.get("tracks") or []) if t is not None
+            ]
+        except Exception:
+            tracks = []
+
+    # 引き直せなかったときは、少なくとも代表曲だけでも見せる。
+    if not tracks:
+        tracks = [
+            t
+            for t in (to_track(e, artwork) for e in songs.get("results") or [])
+            if t is not None
+        ]
 
     subscribers = data.get("subscribers")
     return {
         "kind": "artist",
         "id": browse_id,
         "title": title,
-        "subtitle": f"登録者 {subscribers}" if subscribers else None,
+        "subtitle": None,
+        "subscriberCount": parse_count(subscribers),
         "artworkUrl": artwork,
         "tracks": tracks,
     }
@@ -142,7 +116,9 @@ def main() -> int:
     target = sys.argv[2] if len(sys.argv) > 2 else ""
 
     if kind not in {"album", "playlist", "artist"} or not target:
-        json.dump({"error": "failed", "message": "指定が正しくありません。"}, sys.stdout, ensure_ascii=False)
+        json.dump(
+            {"error": "failed", "message": "指定が正しくありません。"}, sys.stdout, ensure_ascii=False
+        )
         return 1
 
     try:

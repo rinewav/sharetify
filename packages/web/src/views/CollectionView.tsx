@@ -3,7 +3,7 @@ import { Download, Loader2, Play, Shuffle } from "lucide-react";
 import type { CacheState, CollectionKind, CollectionResponse } from "@musicshare/shared";
 import { Artwork } from "../components/Artwork.js";
 import { TrackList } from "../components/TrackList.js";
-import { formatTotalDuration } from "../lib/format.js";
+import { formatCount, formatTotalDuration } from "../lib/format.js";
 import { nodeCache, nodeCollection } from "../lib/node-client.js";
 import { usePlayer } from "../lib/player-store.js";
 
@@ -47,6 +47,7 @@ export function CollectionView({
 
   const tracks = data?.tracks ?? [];
   const title = data?.title || fallbackTitle || "読み込み中";
+  const subscribers = formatCount(data?.subscriberCount);
 
   return (
     <div>
@@ -77,13 +78,21 @@ export function CollectionView({
             ) : (
               <p className="mt-3 text-sm text-ink-muted">{data.subtitle}</p>
             ))}
-          {tracks.length > 0 && (
-            <div className="mt-3 flex flex-wrap items-center gap-1.5 text-sm text-ink-muted">
-              <span>{tracks.length} 曲</span>
-              <span>·</span>
-              <span>{formatTotalDuration(tracks.map((t) => t.durationMs))}</span>
-            </div>
-          )}
+          <div className="mt-3 flex flex-wrap items-center gap-1.5 text-sm text-ink-muted">
+            {subscribers && (
+              <>
+                <span>登録者 {subscribers} 人</span>
+                {tracks.length > 0 && <span>·</span>}
+              </>
+            )}
+            {tracks.length > 0 && (
+              <>
+                <span>{tracks.length} 曲</span>
+                <span>·</span>
+                <span>{formatTotalDuration(tracks.map((t) => t.durationMs))}</span>
+              </>
+            )}
+          </div>
         </div>
       </div>
 

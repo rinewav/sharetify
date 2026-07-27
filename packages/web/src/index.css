@@ -29,11 +29,11 @@ html,
 }
 
 /*
- * 画面の縁の扱いは、この 1 箇所だけで行う。
+ * body は画面いっぱいに広げるだけで、縁を避ける余白は持たせない。
  *
- * ノッチやホームバーを避ける余白を複数の要素で足すと、
- * 端末によっては二重にかかって下に黒い帯が残る。
- * ここで内側に寄せてしまえば、中の要素は縁を意識しなくてよくなる。
+ * ここで内側に寄せると中身が縮み、余った分がそのまま下の帯として残る。
+ * 縁を避けるのは、縁に接している要素の役目にする。
+ * 背景は端まで届かせたまま、文字や絵だけを内側に寄せたい。
  *
  * 高さは動的ビューポートで取る。位置固定と併用すると、
  * 環境によって基準が食い違って隙間の元になるので使わない。
@@ -44,11 +44,6 @@ body {
   height: 100vh; /* 動的ビューポート未対応の環境向け */
   height: 100dvh;
   overflow: hidden;
-  box-sizing: border-box;
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
   background: var(--color-base);
   color: var(--color-ink);
   font-family: var(--font-sans);

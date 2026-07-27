@@ -196,6 +196,7 @@ export async function fetchCollection(
     title: parsed.title ?? "",
     subtitle: parsed.subtitle ?? undefined,
     subtitleLink: parsed.subtitleLink ?? undefined,
+    subscriberCount: parsed.subscriberCount ?? undefined,
     artworkUrl: parsed.artworkUrl ?? undefined,
     tracks: parsed.tracks.map(normalizeTrack),
   };

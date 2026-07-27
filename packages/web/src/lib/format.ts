@@ -6,6 +6,12 @@ export function formatDuration(ms: number | undefined): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
+/** 人数に桁区切りを付ける。略記のままだと桁が掴みにくい。 */
+export function formatCount(count: number | undefined): string | undefined {
+  if (count === undefined || !Number.isFinite(count)) return undefined;
+  return count.toLocaleString("ja-JP");
+}
+
 export function formatTotalDuration(msList: (number | undefined)[]): string {
   const total = msList.reduce<number>((sum, ms) => sum + (ms ?? 0), 0);
   const minutes = Math.round(total / 60000);

@@ -10,8 +10,11 @@ interface Props {
 /** 画面が狭いときの下部ナビ。サイドバーの代わり。 */
 export function MobileNav({ route, onNavigate, onOpenSession }: Props) {
   return (
-    // 縁を避ける余白は body 側で確保済み。ここで足すと二重になる。
-    <nav className="flex items-stretch justify-around border-t border-line bg-base pt-1 pb-2 md:hidden">
+    /*
+     * 画面の下端に接しているので、ホームバーを避けるのはここの役目。
+     * 背景は端まで伸ばしたまま、内側の余白でラベルを持ち上げる。
+     */
+    <nav className="flex items-stretch justify-around border-t border-line bg-base pt-1 pb-[calc(0.5rem+env(safe-area-inset-bottom))] md:hidden">
       <Item
         icon={<Home className="size-5" />}
         label="ホーム"

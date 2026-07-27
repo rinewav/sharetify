@@ -63,7 +63,10 @@ export interface AlbumSummary {
 export interface ArtistSummary {
   id: string;
   name: string;
+  /** 供給元の略記 (例: 462K)。表示には subscriberCount を使う。 */
   subscribers?: string;
+  /** 人数。桁区切りを付けて出せるよう数値で持つ。 */
+  subscriberCount?: number;
   artworkUrl?: string;
 }
 

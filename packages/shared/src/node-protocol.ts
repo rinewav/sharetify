@@ -53,6 +53,8 @@ export interface CollectionResponse {
   subtitle?: string;
   /** 副題からさらに辿れる先。アルバムならアーティストのページ。 */
   subtitleLink?: { kind: CollectionKind; id: string };
+  /** アーティストの場合の登録者数。 */
+  subscriberCount?: number;
   artworkUrl?: string;
   tracks: Track[];
 }

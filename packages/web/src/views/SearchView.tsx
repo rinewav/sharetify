@@ -3,6 +3,7 @@ import { Download, Loader2, Search } from "lucide-react";
 import type { CacheState, CollectionKind, NodeHealth, SearchResponse } from "@musicshare/shared";
 import { ResultCard } from "../components/ResultCard.js";
 import { TrackList } from "../components/TrackList.js";
+import { formatCount } from "../lib/format.js";
 import { nodeCache, nodeCollection, nodeSearch } from "../lib/node-client.js";
 import { usePlayer } from "../lib/player-store.js";
 import type { Route } from "../lib/routes.js";
@@ -134,7 +135,11 @@ export function SearchView({ cacheStates, health, onNavigate, onOpenCollection }
               key={artist.id}
               seed={artist.id}
               title={artist.name}
-              subtitle={artist.subscribers ? `登録者 ${artist.subscribers}` : "アーティスト"}
+              subtitle={
+                formatCount(artist.subscriberCount)
+                  ? `登録者 ${formatCount(artist.subscriberCount)} 人`
+                  : "アーティスト"
+              }
               artworkUrl={artist.artworkUrl}
               round
               onOpen={() => open("artist", artist.id, artist.name)}

@@ -14,63 +14,20 @@
 from __future__ import annotations
 
 import json
-import re
 import sys
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 
 warnings.filterwarnings("ignore")
 
-# 返ってくる URL は 120px 指定のことが多い。末尾の寸法を書き換えれば
-# 同じ画像を大きいサイズで取れるので、表示に耐える解像度に上げておく。
-_SIZE_IN_URL = re.compile(r"=w\d+-h\d+")
-_ARTWORK_SIZE = 544
+sys.path.insert(0, __file__.rsplit("/", 1)[0])
 
-
-def pick_thumbnail(thumbnails: list[dict] | None) -> str | None:
-    """一番大きいものを選ぶ。並び順は保証されていないので幅で判断する。"""
-    if not thumbnails:
-        return None
-    best = max(thumbnails, key=lambda t: t.get("width") or 0)
-    url = best.get("url")
-    if not url:
-        return None
-    return _SIZE_IN_URL.sub(f"=w{_ARTWORK_SIZE}-h{_ARTWORK_SIZE}", url)
-
-
-def join_artists(entry: dict) -> str:
-    names = [a.get("name") for a in entry.get("artists") or [] if a.get("name")]
-    return "、".join(names) if names else "不明"
-
-
-def first_artist_id(entry: dict) -> str | None:
-    """代表アーティストの識別子。表示名からは辿れないので別に持たせる。"""
-    for artist in entry.get("artists") or []:
-        if artist.get("id"):
-            return artist["id"]
-    return None
-
-
-def to_track(entry: dict) -> dict | None:
-    video_id = entry.get("videoId")
-    title = entry.get("title")
-    if not video_id or not title:
-        return None
-
-    seconds = entry.get("duration_seconds")
-    album = entry.get("album") or {}
-    return {
-        "id": video_id,
-        "sourceKind": "remote",
-        "sourceId": video_id,
-        "title": title,
-        "artist": join_artists(entry),
-        "album": album.get("name"),
-        "durationMs": int(seconds * 1000) if seconds else None,
-        "artworkUrl": pick_thumbnail(entry.get("thumbnails")),
-        "artistId": first_artist_id(entry),
-        "albumId": album.get("id"),
-    }
+from ytmusic_common import (  # noqa: E402
+    join_artists,
+    parse_count,
+    pick_thumbnail,
+    to_track,
+)
 
 
 def to_album(entry: dict) -> dict | None:
@@ -102,6 +59,7 @@ def to_artist(entry: dict) -> dict | None:
         "id": browse_id,
         "name": name,
         "subscribers": entry.get("subscribers"),
+        "subscriberCount": parse_count(entry.get("subscribers")),
         "artworkUrl": pick_thumbnail(entry.get("thumbnails")),
     }
 
@@ -112,17 +70,11 @@ def to_playlist(entry: dict) -> dict | None:
     if not browse_id or not title:
         return None
 
-    count = entry.get("itemCount")
-    try:
-        count = int(str(count).replace(",", "")) if count is not None else None
-    except (TypeError, ValueError):
-        count = None
-
     return {
         "id": browse_id,
         "title": title,
         "author": entry.get("author"),
-        "itemCount": count,
+        "itemCount": parse_count(entry.get("itemCount")),
         "artworkUrl": pick_thumbnail(entry.get("thumbnails")),
     }
 
@@ -157,7 +109,7 @@ def main() -> int:
 
     # 種別ごとの問い合わせは互いに独立しているので、待ち時間を重ねない。
     plan = [
-        ("songs", limit, to_track, "tracks"),
+        ("songs", limit, lambda e: to_track(e), "tracks"),
         ("albums", 8, to_album, "albums"),
         ("artists", 6, to_artist, "artists"),
         ("community_playlists", 8, to_playlist, "playlists"),
