@@ -6,7 +6,7 @@ import {
   forgetCursors,
   onHistoryChange,
   rememberCursor,
-  syncCursor,
+  syncMark,
 } from "./play-history.js";
 
 /**
@@ -63,11 +63,19 @@ export async function syncHistory(): Promise<void> {
       .filter((entry) => entry.playedAt > sentUpTo)
       .slice(0, BATCH);
 
-    const reply = await nodeMergeHistory(unsent, syncCursor(peer));
+    /*
+     * 前に受け取った印は、その代のあいだしか通じない。
+     * どの代のものかを添えて渡し、食い違えば相手がまとめて返してくれる。
+     */
+    const mark = syncMark(peer);
+    const reply = await nodeMergeHistory(
+      unsent,
+      mark ? { since: mark.cursor, origin: mark.origin } : undefined,
+    );
 
     if (unsent.length > 0) sentUpTo = Math.max(sentUpTo, unsent[0]!.playedAt);
     absorbHistory(reply.entries);
-    rememberCursor(peer, reply.cursor);
+    rememberCursor(peer, reply.origin, reply.cursor);
 
     /*
      * 刻んだぶんが残っているなら続ける。
@@ -139,7 +147,7 @@ export async function clearSharedHistory(): Promise<void> {
     const reply = await nodeClearHistory();
     const peer = nodeIdentity();
     // 消したあとの印を持っておく。持たないと、消す前のぶんが降りてくる。
-    if (peer) rememberCursor(peer, reply.cursor);
+    if (peer) rememberCursor(peer, reply.origin, reply.cursor);
   } catch {
     // 届かなければ、この端末のぶんだけ消える。
   }

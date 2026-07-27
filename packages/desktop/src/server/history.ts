@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -45,6 +46,15 @@ let nextSeq = 1;
 let loaded = false;
 
 /**
+ * この預かり場の代。
+ *
+ * 置き場ごと消えると番号は 1 から振り直される。
+ * 端末が前の代の印を握ったままだと、同じ番号で別のものを数えることになり、
+ * そのぶんを取りこぼす。代を添えておけば、端末が気づいて受け取り直せる。
+ */
+let origin = "";
+
+/**
  * 同じ一回を指す印。
  *
  * 曲だけでは足りない。同じ曲を二度聴けば二回ぶんある。
@@ -65,11 +75,16 @@ function isValid(value: unknown): value is HistoryEntry {
   return typeof track?.id === "string" && typeof track.title === "string";
 }
 
+interface Stored {
+  origin: string;
+  held: Held[];
+}
+
 export async function loadHistory(): Promise<void> {
   if (loaded) return;
   try {
-    const raw = JSON.parse(await readFile(HISTORY_PATH, "utf8")) as unknown;
-    const list = Array.isArray(raw) ? raw : [];
+    const raw = JSON.parse(await readFile(HISTORY_PATH, "utf8")) as Partial<Stored>;
+    const list = Array.isArray(raw.held) ? raw.held : [];
     held = list
       .filter((row): row is Held => {
         if (typeof row !== "object" || row === null) return false;
@@ -78,9 +93,12 @@ export async function loadHistory(): Promise<void> {
       })
       .map((row) => ({ entry: row.entry, seq: row.seq }));
     nextSeq = held.reduce((max, row) => Math.max(max, row.seq), 0) + 1;
+    origin = typeof raw.origin === "string" && raw.origin ? raw.origin : randomUUID();
   } catch {
+    // 読めない、あるいはまだ無い。ここから新しい代が始まる。
     held = [];
     nextSeq = 1;
+    origin = randomUUID();
   }
   loaded = true;
 }
@@ -93,8 +111,9 @@ export async function loadHistory(): Promise<void> {
  */
 async function persist(): Promise<void> {
   const temporary = `${HISTORY_PATH}.writing`;
+  const stored: Stored = { origin, held };
   await mkdir(dirname(HISTORY_PATH), { recursive: true });
-  await writeFile(temporary, JSON.stringify(held), "utf8");
+  await writeFile(temporary, JSON.stringify(stored), "utf8");
   await rename(temporary, HISTORY_PATH);
 }
 
@@ -132,6 +151,11 @@ export function historySince(since?: number): HistoryEntry[] {
 /** 次に渡す印。ここまで預かった、という目印になる。 */
 export function historyCursor(): number {
   return nextSeq - 1;
+}
+
+/** この預かり場の代。作り直されたことを端末に気づかせる。 */
+export function historyOrigin(): string {
+  return origin;
 }
 
 export function historyCount(): number {

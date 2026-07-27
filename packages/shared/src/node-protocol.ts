@@ -181,6 +181,13 @@ export interface HistoryMergeRequest {
    * 初めてなら省く。そのときは直近のぶんがまとめて返る。
    */
   since?: number;
+  /**
+   * その印を受け取ったときの、預かり場の代。
+   *
+   * いまの代と違えば、印は別のものを指している。
+   * そのときは印を無視して、直近のぶんをまとめて返す。
+   */
+  origin?: string;
 }
 
 export interface HistoryMergeResponse {
@@ -192,6 +199,15 @@ export interface HistoryMergeResponse {
   added: number;
   /** 次に突き合わせるときに渡す印。 */
   cursor: number;
+  /**
+   * 預かり場の世代。
+   *
+   * 置き場を作り直すと番号は 1 から振り直される。
+   * 端末が前の代の印を握ったままだと、同じ番号を指しているのに
+   * 別のものを数えていることになり、そのぶんを取りこぼす。
+   * 代が変わったら、端末は印を捨てて受け取り直す。
+   */
+  origin: string;
 }
 
 export const NODE_ROUTES = {

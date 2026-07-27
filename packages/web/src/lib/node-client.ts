@@ -319,11 +319,11 @@ export function nodeUpdateResolver(): Promise<ToolchainStatus> {
  */
 export function nodeMergeHistory(
   entries: HistoryEntry[],
-  since?: number,
+  mark?: { since: number; origin: string },
 ): Promise<HistoryMergeResponse> {
   return post<HistoryMergeResponse>("/api/history/merge", {
     entries,
-    ...(since !== undefined ? { since } : {}),
+    ...(mark ?? {}),
   });
 }
 

@@ -21,6 +21,7 @@ import {
   clearHistory as clearHistoryStore,
   historyCount,
   historyCursor,
+  historyOrigin,
   historySince,
   listHistory,
   loadHistory,
@@ -271,11 +272,19 @@ export function createNodeApp(): Hono {
    * 中央サーバーは通らない。
    */
   app.get(NODE_ROUTES.history, (c) =>
-    c.json({ entries: listHistory(), total: historyCount(), added: 0, cursor: historyCursor() }),
+    c.json({
+      entries: listHistory(),
+      total: historyCount(),
+      added: 0,
+      cursor: historyCursor(),
+      origin: historyOrigin(),
+    }),
   );
 
   app.post(NODE_ROUTES.historyMerge, async (c) => {
-    const body = await c.req.json<{ entries?: unknown[]; since?: number }>().catch(() => null);
+    const body = await c.req
+      .json<{ entries?: unknown[]; since?: number; origin?: string }>()
+      .catch(() => null);
     if (!Array.isArray(body?.entries)) return c.json({ error: "entries is required" }, 400);
 
     const added = mergeHistory(body.entries);
@@ -285,22 +294,30 @@ export function createNodeApp(): Hono {
      *
      * 印より後に預かったものを渡す。聴いた時刻で削ると、
      * 別の端末があとから足した古い跡を取りこぼす。
+     *
+     * ただし印が通じるのは、それを渡したときと同じ代のあいだだけ。
+     * 置き場を作り直すと番号は 1 から振り直されるので、
+     * 前の代の印をそのまま使うと、同じ番号で別のものを数えることになる。
      */
+    const sameOrigin = body.origin === historyOrigin();
     const since =
-      typeof body.since === "number" && Number.isFinite(body.since) ? body.since : undefined;
+      sameOrigin && typeof body.since === "number" && Number.isFinite(body.since)
+        ? body.since
+        : undefined;
 
     return c.json({
       entries: historySince(since),
       total: historyCount(),
       added,
       cursor: historyCursor(),
+      origin: historyOrigin(),
     });
   });
 
   /** 端末側で捨てたときに、こちらも合わせる。 */
   app.post("/api/history/clear", async (c) => {
     await clearHistoryStore();
-    return c.json({ entries: [], total: 0, added: 0, cursor: historyCursor() });
+    return c.json({ entries: [], total: 0, added: 0, cursor: historyCursor(), origin: historyOrigin() });
   });
 
   /** ある曲を種に、続けて流す曲を並べる。 */

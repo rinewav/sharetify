@@ -139,22 +139,45 @@ export function absorbHistory(incoming: HistoryEntry[]): number {
  */
 const CURSOR_KEY = "sharetify.history-cursor";
 
-function cursors(): Record<string, number> {
+/**
+ * 印は、どの代のものかと組で覚える。
+ *
+ * 相手が預かり場を作り直すと、番号は 1 から振り直される。
+ * 代を見ずに番号だけ覚えていると、同じ番号で別のものを数えることになり、
+ * 相手が持っているぶんを丸ごと取りこぼす。
+ */
+export interface Mark {
+  origin: string;
+  cursor: number;
+}
+
+function marks(): Record<string, Mark> {
   try {
     const raw = localStorage.getItem(CURSOR_KEY);
-    return raw ? (JSON.parse(raw) as Record<string, number>) : {};
+    const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+    const result: Record<string, Mark> = {};
+    for (const [peer, value] of Object.entries(parsed)) {
+      // 代を持たない古い形は、代が変わったものとして扱う。
+      if (typeof value !== "object" || value === null) continue;
+      const mark = value as Partial<Mark>;
+      if (typeof mark.origin === "string" && typeof mark.cursor === "number") {
+        result[peer] = { origin: mark.origin, cursor: mark.cursor };
+      }
+    }
+    return result;
   } catch {
     return {};
   }
 }
 
-export function syncCursor(peer: string): number | undefined {
-  return cursors()[peer];
+/** その相手について覚えている印。心当たりが無ければ undefined。 */
+export function syncMark(peer: string): Mark | undefined {
+  return marks()[peer];
 }
 
-export function rememberCursor(peer: string, cursor: number): void {
+export function rememberCursor(peer: string, origin: string, cursor: number): void {
   try {
-    localStorage.setItem(CURSOR_KEY, JSON.stringify({ ...cursors(), [peer]: cursor }));
+    localStorage.setItem(CURSOR_KEY, JSON.stringify({ ...marks(), [peer]: { origin, cursor } }));
   } catch {
     // 覚えられなくても、次はまとめて受け取り直すだけ。
   }
