@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Heart, Home, Library, Plus, Search, Users } from "lucide-react";
+import { Download, Heart, Home, Library, Plus, Search, Users } from "lucide-react";
 import { Artwork } from "./Artwork.js";
+import { ImportPlaylistSheet } from "./ImportPlaylistSheet.js";
 import { useLibrary } from "../lib/library-store.js";
 import type { Route } from "../lib/routes.js";
 
@@ -12,6 +13,7 @@ interface Props {
 export function Sidebar({ route, onNavigate }: Props) {
   const { playlists, groups, follows, likes, createPlaylist } = useLibrary();
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [name, setName] = useState("");
 
   const groupName = (groupId: string | undefined) =>
@@ -67,15 +69,36 @@ export function Sidebar({ route, onNavigate }: Props) {
             <Library className="size-5" />
             ライブラリ
           </span>
-          <button
-            type="button"
-            onClick={() => setCreating((open) => !open)}
-            className="grid size-8 place-items-center rounded-full text-ink-muted transition hover:bg-surface-3 hover:text-ink"
-            aria-label="プレイリストを作成"
-          >
-            <Plus className="size-4" />
-          </button>
+          <span className="flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => setImporting(true)}
+              className="grid size-8 place-items-center rounded-full text-ink-muted transition hover:bg-surface-3 hover:text-ink"
+              aria-label="プレイリストを取り込む"
+              title="よそのプレイリストを取り込む"
+            >
+              <Download className="size-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setCreating((open) => !open)}
+              className="grid size-8 place-items-center rounded-full text-ink-muted transition hover:bg-surface-3 hover:text-ink"
+              aria-label="プレイリストを作成"
+            >
+              <Plus className="size-4" />
+            </button>
+          </span>
         </div>
+
+        {importing && (
+          <ImportPlaylistSheet
+            onClose={() => setImporting(false)}
+            onDone={(playlistId) => {
+              setImporting(false);
+              onNavigate({ name: "playlist", playlistId });
+            }}
+          />
+        )}
 
         {creating && (
           <div className="px-2 pb-2">

@@ -5,8 +5,11 @@ import type {
   DiscoverResponse,
   HistoryEntry,
   HistoryMergeResponse,
+  ImportedEntry,
   LyricsResult,
   NodeHealth,
+  PlaylistImportResponse,
+  PlaylistMatchResponse,
   PresenceStatus,
   RadioResponse,
   ResolveResponse,
@@ -424,6 +427,26 @@ export function lastfmNowPlaying(track: unknown): Promise<{ ok: boolean }> {
 
 export function lastfmScrobble(track: unknown, playedAt: number): Promise<{ ok: boolean }> {
   return post<{ ok: boolean }>("/api/lastfm/scrobble", { track, playedAt });
+}
+
+/* --------------------- よそのプレイリストを持ってくる --------------------- */
+
+/**
+ * 読み取りと突き合わせは分けて呼ぶ。
+ *
+ * 読み取りはすぐ返るので、まず何が入っているかを見せられる。
+ * 突き合わせは曲数ぶん探しに行くので待たされる。
+ * 一息に済ませると、中身も分からないまま長く止まって見える。
+ */
+export function nodeImportPlaylist(input: {
+  url?: string;
+  text?: string;
+}): Promise<PlaylistImportResponse> {
+  return post<PlaylistImportResponse>("/api/playlist/import", input);
+}
+
+export function nodeMatchPlaylist(entries: ImportedEntry[]): Promise<PlaylistMatchResponse> {
+  return post<PlaylistMatchResponse>("/api/playlist/match", { entries });
 }
 
 /**

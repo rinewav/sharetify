@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { ListMusic, Play, Search, Sparkles } from "lucide-react";
+import { Download, ListMusic, Play, Search, Sparkles } from "lucide-react";
 import type { CollectionKind, DiscoverSection, Track } from "@sharetify/shared";
 import { Artwork } from "../components/Artwork.js";
 import type { MenuItem } from "../components/ContextMenu.js";
+import { ImportPlaylistSheet } from "../components/ImportPlaylistSheet.js";
 import { LinkedName } from "../components/LinkedName.js";
 import { PressableCard } from "../components/PressableCard.js";
 import { formatCount } from "../lib/format.js";
@@ -46,6 +47,7 @@ interface Props {
 export function HomeView({ onNavigate, nodeOnline, onAddTo }: Props) {
   const { playlists, groups, follows, user } = useLibrary();
   const playQueue = usePlayer((s) => s.playQueue);
+  const [importing, setImporting] = useState(false);
 
   // 右クリックの品書き。札で並ぶ画面でも一覧と同じ操作が出るようにする。
   const menu = useContextMenu();
@@ -116,6 +118,31 @@ export function HomeView({ onNavigate, nodeOnline, onAddTo }: Props) {
             検索へ
           </button>
         </div>
+      )}
+
+      {/*
+        よそから持ってくる入口。
+
+        横に並ぶ画面では左の棚に同じものがあるので、
+        そちらが隠れる幅のときだけ出す。
+      */}
+      <button
+        type="button"
+        onClick={() => setImporting(true)}
+        className="press mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-surface-2 px-5 py-2.5 text-sm font-semibold transition hover:bg-surface-3 md:hidden"
+      >
+        <Download className="size-4" />
+        プレイリストを取り込む
+      </button>
+
+      {importing && (
+        <ImportPlaylistSheet
+          onClose={() => setImporting(false)}
+          onDone={(playlistId) => {
+            setImporting(false);
+            onNavigate({ name: "playlist", playlistId });
+          }}
+        />
       )}
 
       {/* 自分の書棚への近道。いちばん手が伸びる場所に置く。 */}

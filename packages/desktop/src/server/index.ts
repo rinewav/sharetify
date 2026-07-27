@@ -13,6 +13,8 @@ import {
   type LyricsResult,
   type NodeHealth,
   type ResolveResponse,
+  type PlaylistImportRequest,
+  type PlaylistMatchRequest,
   type PresenceRequest,
   type SearchResponse,
   type Track,
@@ -54,6 +56,7 @@ import {
   setDiscordEnabled,
 } from "./discord.js";
 import { fetchLyrics } from "./lyrics.js";
+import { ImportFailure, importPlaylist, matchEntries } from "./playlist-import.js";
 import { PeerHost } from "./peer.js";
 import {
   fetchCollection,
@@ -322,6 +325,36 @@ export function createNodeApp(): Hono {
       cursor: historyCursor(),
       origin: historyOrigin(),
     });
+  });
+
+  /*
+   * よそのプレイリストを持ってくる。
+   *
+   * 読み取りと突き合わせを分けてある。読み取りは速いので先に一覧を見せ、
+   * 時間のかかる突き合わせは、持ち主が中身を見て決めてから走らせる。
+   */
+  app.post(NODE_ROUTES.playlistImport, async (c) => {
+    const body = await c.req.json<PlaylistImportRequest>().catch(() => null);
+    if (!body) return c.json({ error: "invalid body" }, 400);
+
+    try {
+      return c.json(await importPlaylist(body));
+    } catch (error) {
+      // 読み取れない理由は持ち主に見せる。直せることが多い。
+      if (error instanceof ImportFailure) return c.json({ error: error.message }, 400);
+      return c.json({ error: describe(error) }, 502);
+    }
+  });
+
+  app.post(NODE_ROUTES.playlistMatch, async (c) => {
+    const body = await c.req.json<PlaylistMatchRequest>().catch(() => null);
+    if (!body?.entries?.length) return c.json({ error: "entries is required" }, 400);
+
+    try {
+      return c.json(await matchEntries(body.entries));
+    } catch (error) {
+      return c.json({ error: describe(error) }, 502);
+    }
   });
 
   /*

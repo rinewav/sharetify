@@ -211,6 +211,54 @@ export interface HistoryMergeResponse {
 }
 
 /* ------------------------------------------------------------------
+ * よそのプレイリストを持ってくる
+ *
+ * 持ってくるのは曲の題と演奏者だけで、音声は一切通らない。
+ * 手元の音源と結び付けるのは、いつもの検索を通した後になる。
+ * ------------------------------------------------------------------ */
+
+/** どこから読み取ったか。 */
+export type ImportSource = "spotify" | "apple-music" | "text";
+
+/** 読み取った一曲ぶん。まだ手元の音源には結び付いていない。 */
+export interface ImportedEntry {
+  title: string;
+  artist: string;
+  album?: string;
+}
+
+/** アドレスを渡すか、貼り付けた文字を渡すか。 */
+export interface PlaylistImportRequest {
+  url?: string;
+  text?: string;
+}
+
+export interface PlaylistImportResponse {
+  source: ImportSource;
+  /** 向こうでの呼び名。手元でもこの名前で作る。 */
+  name: string;
+  entries: ImportedEntry[];
+}
+
+/** 読み取った並びを手元の音源に突き合わせる。 */
+export interface PlaylistMatchRequest {
+  entries: ImportedEntry[];
+}
+
+/** 一曲ぶんの突き合わせ結果。見つからなかったものも落とさずに返す。 */
+export interface PlaylistMatchItem {
+  entry: ImportedEntry;
+  /** 見つからなければ null。取りこぼしとして数え上げる。 */
+  track: Track | null;
+}
+
+export interface PlaylistMatchResponse {
+  items: PlaylistMatchItem[];
+  matched: number;
+  missed: number;
+}
+
+/* ------------------------------------------------------------------
  * Discord への表示
  *
  * いま聴いているものを Discord のプロフィールに出す。
@@ -255,4 +303,8 @@ export const NODE_ROUTES = {
   historyMerge: "/api/history/merge",
   /** Discord への表示。 */
   presence: "/api/presence",
+  /** よそのプレイリストを読み取る。 */
+  playlistImport: "/api/playlist/import",
+  /** 読み取った並びを手元の音源に突き合わせる。 */
+  playlistMatch: "/api/playlist/match",
 } as const;
