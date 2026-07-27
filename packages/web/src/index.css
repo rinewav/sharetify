@@ -300,3 +300,35 @@ select {
     opacity: 1;
   }
 }
+
+/*
+ * 配って回す入れ物の中での上端。
+ *
+ * 枠を隠しているので、掴んで動かせる場所を自分で用意しないと、
+ * どこを持っても窓が動かせない。
+ * 閲覧環境で開いたときは何も起きないよう、印の付いた中だけに効かせる。
+ */
+@utility app-drag {
+  .is-desktop-app & {
+    -webkit-app-region: drag;
+  }
+}
+
+/* 掴める場所の中に置く押しもの。ここは掴む対象から外す。 */
+@utility app-no-drag {
+  .is-desktop-app & {
+    -webkit-app-region: no-drag;
+  }
+}
+
+/*
+ * 上端の丸いボタンを避けるための逃げ。
+ *
+ * 枠を隠すと、閉じる・しまう・広げるが中身の上に重なる。
+ * その分だけ左を空けておく。
+ */
+@utility mac-window-inset {
+  .is-mac-app & {
+    padding-top: 26px;
+  }
+}

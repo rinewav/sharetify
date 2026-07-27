@@ -25,7 +25,15 @@ import { peerClient } from "./peer-client.js";
  * HTTP の node を直に触ると混在コンテンツで弾かれる。
  */
 
-const BASE = import.meta.env["VITE_NODE_BASE"] ?? "/node-api";
+/*
+ * 自分の PC への入口。
+ *
+ * 開発中は別に立てた配信役が取り次ぐので、その道を通る。
+ * 配って回すものは画面と同じ所から配られているので、付け足す道は要らない。
+ * 空を指定できるようにしておかないと、存在しない道を叩き続けることになる。
+ */
+const configuredBase = import.meta.env["VITE_NODE_BASE"];
+const BASE = configuredBase === undefined ? "/node-api" : configuredBase;
 
 /** 直結が使える状態か。 */
 function viaPeer(): boolean {

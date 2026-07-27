@@ -3,7 +3,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, dialog, shell } from "electron";
 import { NODE_DEFAULT_PORT } from "@sharetify/shared";
+import { buildMenu } from "./menu.js";
 import { startNodeServer } from "./server/index.js";
+import { loadWindowState, rememberWindowState } from "./window-state.js";
 
 /**
  * デスクトップアプリ。
@@ -30,18 +32,35 @@ const WEB_DEV_URL = process.env.SHARETIFY_WEB_URL ?? "http://localhost:5273";
 let window: BrowserWindow | null = null;
 
 async function createWindow(url: string): Promise<void> {
+  // 前に閉じたときの姿で開く。毎回置き直さずに済む。
+  const state = await loadWindowState();
+
   window = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    minWidth: 960,
-    minHeight: 600,
+    width: state.width,
+    height: state.height,
+    ...(state.x !== undefined && state.y !== undefined ? { x: state.x, y: state.y } : {}),
+    minWidth: 860,
+    minHeight: 560,
     backgroundColor: "#000000",
+    // 枠は自前で持つ。掴んで動かせる場所は画面側で用意してある。
     titleBarStyle: "hiddenInset",
+    /*
+     * 閉じる・しまう・広げるの丸いボタンを少し下げる。
+     * 既定の位置だと、左の並びのいちばん上の見出しに重なる。
+     */
+    trafficLightPosition: { x: 14, y: 18 },
+    // 中身が出そろう前に見せると、暗い枠が一瞬ちらつく。
+    show: false,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
+
+  if (state.maximized) window.maximize();
+  rememberWindowState(window);
+
+  window.once("ready-to-show", () => window?.show());
 
   await window.loadURL(url);
   window.on("closed", () => {
@@ -55,10 +74,20 @@ async function createWindow(url: string): Promise<void> {
   });
 }
 
+/*
+ * 名乗る名前を先に決める。
+ *
+ * 包む前は入れ物の既定の名前 (Electron) が品書きに出てしまう。
+ * 包んだあとは正しく出るが、開発中も同じ名前で確かめられるほうがよい。
+ */
+app.setName("Sharetify");
+
 app.whenReady().then(async () => {
   const port = Number(process.env.PORT ?? NODE_DEFAULT_PORT);
   const bundled = existsSync(join(BUNDLED_WEB, "index.html"));
   const url = bundled ? `http://127.0.0.1:${port}/` : WEB_DEV_URL;
+
+  buildMenu(() => window);
 
   try {
     await startNodeServer(port, bundled ? BUNDLED_WEB : undefined);

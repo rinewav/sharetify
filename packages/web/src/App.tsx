@@ -171,14 +171,18 @@ export default function App() {
      */
     <div className="pad-top-safe flex h-full flex-col bg-base">
       <div className="flex min-h-0 flex-1 gap-2 p-2">
-        <div className="hidden md:block">
+        <div className="mac-window-inset app-drag hidden md:block">
           <Sidebar route={route} onNavigate={navigate} />
         </div>
 
         <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-surface">
-          <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-4 bg-surface/70 px-4 py-3 backdrop-blur sm:px-6">
+          {/*
+            上端の帯は掴んで窓を動かせる場所も兼ねる。
+            枠を隠しているので、ここが無いとどこを持っても動かせない。
+          */}
+          <header className="app-drag absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-4 bg-surface/70 px-4 py-3 backdrop-blur sm:px-6">
             {/* 履歴の前後移動は下部ナビで足りるので、狭い画面では出さない。 */}
-            <div className="hidden items-center gap-2 md:flex">
+            <div className="app-no-drag hidden items-center gap-2 md:flex">
               <button
                 type="button"
                 onClick={goBack}
@@ -199,7 +203,7 @@ export default function App() {
               </button>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="app-no-drag flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => setPairingOpen(true)}

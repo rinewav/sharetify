@@ -27,9 +27,9 @@ export function Sidebar({ route, onNavigate }: Props) {
   };
 
   return (
-    <nav className="flex h-full w-[260px] shrink-0 flex-col gap-2">
+    <nav className="app-no-drag flex h-full w-[260px] shrink-0 flex-col gap-2">
       <div className="rounded-lg bg-surface p-2">
-        <div className="px-3 pt-3 pb-4">
+        <div className="app-drag px-3 pt-3 pb-4">
           <span className="flex items-center gap-2.5">
             <img
               src="/icons/icon-192.png"
