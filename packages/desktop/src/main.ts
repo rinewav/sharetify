@@ -104,6 +104,12 @@ async function createWindow(url: string): Promise<void> {
     // 枠は自前で持つ。掴んで動かせる場所は画面側で用意してある。
     titleBarStyle: "hiddenInset",
     /*
+     * Windows と Linux では、メニューが窓の中に帯として出る。
+     * 押す理由のないものが場所を取るので出さない。
+     * (メニューそのものも menu.ts 側で組み立てないようにしてある)
+     */
+    autoHideMenuBar: true,
+    /*
      * 閉じる・しまう・広げるの丸いボタンを少し下げる。
      * 既定の位置だと、左の並びのいちばん上の見出しに重なる。
      */
@@ -144,7 +150,7 @@ app.setName("Sharetify");
 /*
  * 二つ目は立ち上げない。
  *
- * 同じ機械で二重に動かすと、待ち受ける場所を取り合って落ちる。
+ * 同じパソコンで二重に動かすと、待ち受ける場所を取り合って落ちる。
  * 二つ目を開こうとしたら、既にある窓を前に出すだけにする。
  */
 if (!app.requestSingleInstanceLock()) {

@@ -1,15 +1,26 @@
 import { app, Menu, shell, type BrowserWindow, type MenuItemConstructorOptions } from "electron";
 
 /**
- * 上に出す品書き。
+ * メニューを組み立てる。
  *
- * 何も用意しないと、既定の英語の品書きがそのまま出る。
- * 中身も開発者向けのものが並んでいて、配って回すものには合わない。
+ * macOS では画面上部にメニューバーが常に出るので、
+ * 何も用意しないと既定の英語のメニューがそのまま並ぶ。
+ *
+ * Windows と Linux ではメニューが窓の中に入り込み、
+ * 「ファイル」「表示」といった帯が上に増える。
+ * このアプリで扱う操作はすべて画面の中に置いてあるので、
+ * その帯があっても押す理由がない。場所を取るだけなので出さない。
+ * 文字の複写や貼り付けは、メニューが無くても入力欄で普通に効く。
  */
 
 const isMac = process.platform === "darwin";
 
 export function buildMenu(getWindow: () => BrowserWindow | null): void {
+  if (!isMac) {
+    Menu.setApplicationMenu(null);
+    return;
+  }
+
   const template: MenuItemConstructorOptions[] = [
     ...(isMac
       ? ([
