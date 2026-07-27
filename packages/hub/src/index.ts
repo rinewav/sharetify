@@ -18,6 +18,8 @@ import {
   createPlaylist,
   createUser,
   deletePlaylist,
+  followArtist,
+  followsFor,
   getGroup,
   getPlaylist,
   groupsForUser,
@@ -29,6 +31,7 @@ import {
   removeTrackFromPlaylist,
   renameUser,
   setPlaylistTracks,
+  unfollowArtist,
   userForToken,
 } from "./store.js";
 import {
@@ -91,8 +94,32 @@ app.get("/api/me", (c) => {
     user,
     groups: withMembers(user),
     playlists: playlistsForUser(user.id),
+    follows: followsFor(user.id),
   };
   return c.json(response);
+});
+
+/* ------------------------------ フォロー ------------------------------ */
+
+app.post("/api/follows", async (c) => {
+  const user = requireUser(c.req.header("authorization"));
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+
+  const body = await c.req
+    .json<{ id?: string; name?: string; artworkUrl?: string }>()
+    .catch(() => null);
+  if (!body?.id || !body.name) return c.json({ error: "id and name are required" }, 400);
+
+  return c.json(
+    followArtist(user.id, { id: body.id, name: body.name, artworkUrl: body.artworkUrl }),
+  );
+});
+
+app.delete("/api/follows/:id", (c) => {
+  const user = requireUser(c.req.header("authorization"));
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+
+  return c.json(unfollowArtist(user.id, c.req.param("id")));
 });
 
 app.patch("/api/me", async (c) => {

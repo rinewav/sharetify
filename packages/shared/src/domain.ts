@@ -107,6 +107,19 @@ export interface User {
   avatarUrl?: string;
 }
 
+/**
+ * 気に入ったアーティストの控え。
+ *
+ * 名前だけだと辿れないので、開くための識別子ごと持つ。
+ * 一覧に出したり、次に聴くものを選ぶ手掛かりにしたりする。
+ */
+export interface FollowedArtist {
+  id: string;
+  name: string;
+  artworkUrl?: string;
+  followedAt: string;
+}
+
 /** 友だち同士の集まり。この中で共有プレイリストを複数持てる。 */
 export interface Group {
   id: string;

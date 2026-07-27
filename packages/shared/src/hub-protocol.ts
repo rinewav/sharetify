@@ -10,7 +10,14 @@
  * この設計なので中継が要らず、hub の帯域は毎秒数十バイトに収まる。
  */
 
-import type { Group, GroupMember, Playlist, Track, User } from "./domain.js";
+import type {
+  FollowedArtist,
+  Group,
+  GroupMember,
+  Playlist,
+  Track,
+  User,
+} from "./domain.js";
 
 export const HUB_DEFAULT_PORT = 47820;
 
@@ -21,6 +28,7 @@ export const HUB_ROUTES = {
   groups: "/api/groups",
   groupJoin: "/api/groups/join",
   playlists: "/api/playlists",
+  follows: "/api/follows",
   sessions: "/api/sessions",
   socket: "/ws",
 } as const;
@@ -43,6 +51,7 @@ export interface MeResponse {
   user: User;
   groups: GroupWithMembers[];
   playlists: Playlist[];
+  follows: FollowedArtist[];
 }
 
 /* ------------------------------------------------------------------ *

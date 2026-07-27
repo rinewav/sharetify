@@ -19,6 +19,7 @@ import { listCached } from "./lib/offline-cache.js";
 import { usePlayer } from "./lib/player-store.js";
 import { useSession } from "./lib/session-store.js";
 import type { Route } from "./lib/routes.js";
+import { ArtistView } from "./views/ArtistView.js";
 import { CollectionView } from "./views/CollectionView.js";
 import { GroupsView } from "./views/GroupsView.js";
 import { HomeView } from "./views/HomeView.js";
@@ -101,7 +102,16 @@ export default function App() {
       case "groups":
         return <GroupsView onNavigate={navigate} />;
       case "collection":
-        return (
+        // アーティストは並べ方が違う。曲だけでなく、まとまりごと見せたい。
+        return route.kind === "artist" ? (
+          <ArtistView
+            id={route.id}
+            fallbackTitle={route.title}
+            cacheStates={cacheStates}
+            onOpenCollection={openCollection}
+            onAddTo={setAddingTrack}
+          />
+        ) : (
           <CollectionView
             kind={route.kind}
             id={route.id}

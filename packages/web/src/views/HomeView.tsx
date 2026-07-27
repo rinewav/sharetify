@@ -9,7 +9,7 @@ interface Props {
 }
 
 export function HomeView({ onNavigate }: Props) {
-  const { playlists, groups, user } = useLibrary();
+  const { playlists, groups, follows, user } = useLibrary();
   const playQueue = usePlayer((s) => s.playQueue);
 
   // 中身のあるものを先に出す。空の並びを上に置いても手掛かりにならない。
@@ -104,6 +104,30 @@ export function HomeView({ onNavigate }: Props) {
           );
         })}
       </Section>
+
+      {/* 気に入った人をここにも出す。次に何を聴くかの手掛かりになる。 */}
+      {follows.length > 0 && (
+        <Section title="フォロー中">
+          {follows.map((artist) => (
+            <Card
+              key={artist.id}
+              seed={artist.id}
+              title={artist.name}
+              subtitle="アーティスト"
+              artworkUrl={artist.artworkUrl}
+              round
+              onClick={() =>
+                onNavigate({
+                  name: "collection",
+                  kind: "artist",
+                  id: artist.id,
+                  title: artist.name,
+                })
+              }
+            />
+          ))}
+        </Section>
+      )}
     </div>
   );
 }
@@ -124,6 +148,7 @@ function Card({
   title,
   subtitle,
   artworkUrl,
+  round = false,
   onClick,
   onPlay,
 }: {
@@ -131,8 +156,9 @@ function Card({
   title: string;
   subtitle: string;
   artworkUrl?: string;
+  round?: boolean;
   onClick: () => void;
-  onPlay: () => void;
+  onPlay?: () => void;
 }) {
   return (
     <button
@@ -146,17 +172,19 @@ function Card({
           label={title}
           src={artworkUrl}
           className="aspect-square w-full text-4xl sm:text-5xl"
-          rounded="rounded-md"
+          rounded={round ? "rounded-full" : "rounded-md"}
         />
-        <span
-          onClick={(event) => {
-            event.stopPropagation();
-            onPlay();
-          }}
-          className="absolute right-2 bottom-2 grid size-10 translate-y-2 place-items-center rounded-full bg-accent text-accent-ink opacity-0 shadow-xl transition group-hover:translate-y-0 group-hover:opacity-100 sm:size-11"
-        >
-          <Play className="size-4 translate-x-px fill-current" />
-        </span>
+        {onPlay && (
+          <span
+            onClick={(event) => {
+              event.stopPropagation();
+              onPlay();
+            }}
+            className="absolute right-2 bottom-2 grid size-10 translate-y-2 place-items-center rounded-full bg-accent text-accent-ink opacity-0 shadow-xl transition group-hover:translate-y-0 group-hover:opacity-100 sm:size-11"
+          >
+            <Play className="size-4 translate-x-px fill-current" />
+          </span>
+        )}
       </div>
       <div className="mt-3 truncate text-sm font-semibold">{title}</div>
       <div className="mt-1 truncate text-xs text-ink-muted">{subtitle}</div>

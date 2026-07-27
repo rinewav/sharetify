@@ -106,6 +106,18 @@ body {
   outline-offset: -2px;
 }
 
+/*
+ * 入力欄の文字は周りの色を継ぐ。
+ * 指定がないと閲覧環境の既定色 (たいてい黒) になり、
+ * 暗い背景の上では打った字が見えなくなる。
+ */
+input,
+textarea,
+select {
+  color: inherit;
+  font: inherit;
+}
+
 /* スクロールバーは主張させない。コンテンツに視線を残す。 */
 ::-webkit-scrollbar {
   width: 12px;

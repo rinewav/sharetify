@@ -55,8 +55,16 @@ export interface CollectionResponse {
   subtitleLink?: { kind: CollectionKind; id: string };
   /** アーティストの場合の登録者数。 */
   subscriberCount?: number;
+  /** アーティストの場合の月間リスナー数。 */
+  monthlyListeners?: number;
+  /** アーティストの紹介文。 */
+  description?: string;
   artworkUrl?: string;
   tracks: Track[];
+  /* アーティストを開いたときだけ入る。まとまりを並べて見せるため。 */
+  albums?: AlbumSummary[];
+  singles?: AlbumSummary[];
+  related?: ArtistSummary[];
 }
 
 /**

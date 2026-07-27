@@ -1,7 +1,14 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { randomBytes, randomUUID } from "node:crypto";
-import type { Group, GroupMember, Playlist, Track, User } from "@musicshare/shared";
+import type {
+  FollowedArtist,
+  Group,
+  GroupMember,
+  Playlist,
+  Track,
+  User,
+} from "@musicshare/shared";
 
 /**
  * 素朴な JSON ファイル永続化。
@@ -15,11 +22,13 @@ interface Snapshot {
   groups: Group[];
   playlists: Playlist[];
   tokens: Record<string, string>;
+  /** 利用者ごとの、気に入ったアーティスト。 */
+  follows: Record<string, FollowedArtist[]>;
 }
 
 const DATA_PATH = resolve(process.cwd(), "data", "hub.json");
 
-const empty: Snapshot = { users: [], groups: [], playlists: [], tokens: {} };
+const empty: Snapshot = { users: [], groups: [], playlists: [], tokens: {}, follows: {} };
 
 let snapshot: Snapshot = structuredClone(empty);
 let writeQueue: Promise<void> = Promise.resolve();
@@ -212,6 +221,34 @@ export function removeTrackFromPlaylist(id: string, trackId: string): Playlist |
   playlist.updatedAt = new Date().toISOString();
   persist();
   return playlist;
+}
+
+/* ------------------------------ フォロー ------------------------------ */
+
+export function followsFor(userId: string): FollowedArtist[] {
+  return snapshot.follows[userId] ?? [];
+}
+
+export function followArtist(
+  userId: string,
+  artist: { id: string; name: string; artworkUrl?: string },
+): FollowedArtist[] {
+  const list = followsFor(userId);
+  if (!list.some((a) => a.id === artist.id)) {
+    // 新しいものを先に。よく開くのはたいてい直近のもの。
+    snapshot.follows[userId] = [
+      { ...artist, followedAt: new Date().toISOString() },
+      ...list,
+    ];
+    persist();
+  }
+  return followsFor(userId);
+}
+
+export function unfollowArtist(userId: string, artistId: string): FollowedArtist[] {
+  snapshot.follows[userId] = followsFor(userId).filter((a) => a.id !== artistId);
+  persist();
+  return followsFor(userId);
 }
 
 export function deletePlaylist(id: string): boolean {

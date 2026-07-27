@@ -1,4 +1,5 @@
 import type {
+  FollowedArtist,
   GroupWithMembers,
   LoginResponse,
   MeResponse,
@@ -117,6 +118,22 @@ export function hubRemoveTrack(playlistId: string, trackId: string): Promise<Pla
 
 export function hubDeletePlaylist(playlistId: string): Promise<{ ok: boolean }> {
   return call<{ ok: boolean }>(`/api/playlists/${playlistId}`, { method: "DELETE" });
+}
+
+/* ------------------------------ フォロー ------------------------------ */
+
+export function hubFollow(artist: {
+  id: string;
+  name: string;
+  artworkUrl?: string;
+}): Promise<FollowedArtist[]> {
+  return call<FollowedArtist[]>("/api/follows", { method: "POST", body: artist });
+}
+
+export function hubUnfollow(artistId: string): Promise<FollowedArtist[]> {
+  return call<FollowedArtist[]>(`/api/follows/${encodeURIComponent(artistId)}`, {
+    method: "DELETE",
+  });
 }
 
 /* ------------------------------ 同時リスニング ------------------------------ */

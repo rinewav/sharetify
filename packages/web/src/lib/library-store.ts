@@ -1,10 +1,11 @@
 import { create } from "zustand";
-import type { GroupWithMembers, Playlist, Track, User } from "@musicshare/shared";
+import type { FollowedArtist, GroupWithMembers, Playlist, Track, User } from "@musicshare/shared";
 import {
   hubAddTrack,
   hubCreateGroup,
   hubCreatePlaylist,
   hubDeletePlaylist,
+  hubFollow,
   hubJoinGroup,
   hubLeaveGroup,
   hubLogin,
@@ -12,6 +13,7 @@ import {
   hubRemoveTrack,
   hubSetTracks,
   hubSignOut,
+  hubUnfollow,
   storedToken,
 } from "./hub-client.js";
 
@@ -26,6 +28,7 @@ interface LibraryState {
   user: User | null;
   groups: GroupWithMembers[];
   playlists: Playlist[];
+  follows: FollowedArtist[];
   loading: boolean;
   error: string | null;
   /** 中央サーバーに繋がっているか。落ちていても再生は続けられる。 */
@@ -45,6 +48,10 @@ interface LibraryState {
   reorderTracks: (playlistId: string, tracks: Track[]) => Promise<void>;
   deletePlaylist: (playlistId: string) => Promise<void>;
 
+  follow: (artist: { id: string; name: string; artworkUrl?: string }) => Promise<void>;
+  unfollow: (artistId: string) => Promise<void>;
+  isFollowing: (artistId: string) => boolean;
+
   playlistById: (id: string) => Playlist | undefined;
   groupById: (id: string) => GroupWithMembers | undefined;
 }
@@ -53,13 +60,14 @@ export const useLibrary = create<LibraryState>((set, get) => ({
   user: null,
   groups: [],
   playlists: [],
+  follows: [],
   loading: false,
   error: null,
   online: false,
 
   refresh: async () => {
     if (!storedToken()) {
-      set({ user: null, groups: [], playlists: [], online: false });
+      set({ user: null, groups: [], playlists: [], follows: [], online: false });
       return;
     }
     set({ loading: true });
@@ -69,6 +77,7 @@ export const useLibrary = create<LibraryState>((set, get) => ({
         user: me.user,
         groups: me.groups,
         playlists: me.playlists,
+        follows: me.follows ?? [],
         online: true,
         error: null,
       });
@@ -99,7 +108,7 @@ export const useLibrary = create<LibraryState>((set, get) => ({
 
   signOut: () => {
     hubSignOut();
-    set({ user: null, groups: [], playlists: [], online: false });
+    set({ user: null, groups: [], playlists: [], follows: [], online: false });
   },
 
   createGroup: async (name) => {
@@ -161,6 +170,23 @@ export const useLibrary = create<LibraryState>((set, get) => ({
       await get().refresh();
     });
   },
+
+  follow: async (artist) => {
+    // 押した瞬間に見た目を変える。往復を待たせると反応が鈍く感じる。
+    const optimistic = [
+      { ...artist, followedAt: new Date().toISOString() },
+      ...get().follows,
+    ];
+    set({ follows: optimistic });
+    await guard(set, async () => set({ follows: await hubFollow(artist) }));
+  },
+
+  unfollow: async (artistId) => {
+    set({ follows: get().follows.filter((a) => a.id !== artistId) });
+    await guard(set, async () => set({ follows: await hubUnfollow(artistId) }));
+  },
+
+  isFollowing: (artistId) => get().follows.some((a) => a.id === artistId),
 
   playlistById: (id) => get().playlists.find((p) => p.id === id),
   groupById: (id) => get().groups.find((g) => g.id === id),

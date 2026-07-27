@@ -197,8 +197,14 @@ export async function fetchCollection(
     subtitle: parsed.subtitle ?? undefined,
     subtitleLink: parsed.subtitleLink ?? undefined,
     subscriberCount: parsed.subscriberCount ?? undefined,
+    monthlyListeners: parsed.monthlyListeners ?? undefined,
+    description: parsed.description ?? undefined,
     artworkUrl: parsed.artworkUrl ?? undefined,
     tracks: parsed.tracks.map(normalizeTrack),
+    // アーティストを開いたときだけ入る。まとまりを並べて見せるため。
+    albums: parsed.albums?.map(stripNulls),
+    singles: parsed.singles?.map(stripNulls),
+    related: parsed.related?.map(stripNulls),
   };
 }
 

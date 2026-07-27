@@ -10,7 +10,7 @@ interface Props {
 }
 
 export function Sidebar({ route, onNavigate }: Props) {
-  const { playlists, groups, createPlaylist } = useLibrary();
+  const { playlists, groups, follows, createPlaylist } = useLibrary();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
 
@@ -85,11 +85,48 @@ export function Sidebar({ route, onNavigate }: Props) {
         )}
 
         <div className="no-scrollbar scroll-area min-h-0 flex-1 px-2 pb-2">
-          {playlists.length === 0 && !creating && (
+          {playlists.length === 0 && follows.length === 0 && !creating && (
             <p className="px-2 py-4 text-xs text-ink-faint">
-              まだありません。＋ から作れます。
+              まだありません。＋ から作るか、アーティストをフォローしてみてください。
             </p>
           )}
+
+          {/*
+            気に入ったアーティストも並びと同じ場所に置く。
+            探しに行くのではなく、いつもの場所から開けるように。
+          */}
+          {follows.map((artist) => {
+            const active = route.name === "collection" && route.id === artist.id;
+            return (
+              <button
+                key={artist.id}
+                type="button"
+                onClick={() =>
+                  onNavigate({
+                    name: "collection",
+                    kind: "artist",
+                    id: artist.id,
+                    title: artist.name,
+                  })
+                }
+                className={`flex w-full items-center gap-3 rounded-md p-2 text-left transition ${
+                  active ? "bg-surface-3" : "hover:bg-surface-2"
+                }`}
+              >
+                <Artwork
+                  seed={artist.id}
+                  label={artist.name}
+                  src={artist.artworkUrl}
+                  className="size-11"
+                  rounded="rounded-full"
+                />
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium">{artist.name}</span>
+                  <span className="block truncate text-xs text-ink-muted">アーティスト</span>
+                </span>
+              </button>
+            );
+          })}
 
           {playlists.map((playlist) => {
             const active = route.name === "playlist" && route.playlistId === playlist.id;
