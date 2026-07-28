@@ -126,6 +126,10 @@ interface PlayerState {
   playNext: (track: Track) => void;
   /** 並びの最後に足す。 */
   enqueue: (track: Track) => void;
+  /** 並びから一曲抜く。 */
+  removeFromQueue: (index: number) => void;
+  /** 並びの中で場所を入れ替える。 */
+  moveInQueue: (from: number, to: number) => void;
   toggle: () => void;
   next: () => void;
   prev: () => void;
@@ -269,6 +273,77 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     }
     if (queue.some((t) => t.id === track.id)) return;
     set({ queue: [...queue, track] });
+  },
+
+  /*
+   * 並びから一曲抜く。
+   *
+   * 抜いた場所より後ろは前へ詰まるので、いま鳴っている曲を指す番号も
+   * 一緒にずらす。ここを放っておくと、指す先が隣の曲へ移ってしまう。
+   * 鳴っている曲そのものを抜かれたときは、次の曲へ移る。
+   */
+  removeFromQueue: (at) => {
+    const { queue, index } = get();
+    if (at < 0 || at >= queue.length) return;
+
+    const next = queue.filter((_, i) => i !== at);
+
+    if (next.length === 0) {
+      backend?.pause();
+      set({ queue: [], index: 0, positionMs: 0, loadedDurationMs: 0, orderedQueue: null });
+      broadcast?.({ kind: "setQueue", tracks: [], startIndex: 0 });
+      return;
+    }
+
+    if (at < index) {
+      set({ queue: next, index: index - 1, orderedQueue: null });
+    } else if (at > index) {
+      set({ queue: next, index, orderedQueue: null });
+    } else {
+      /*
+       * 鳴っているものが無くなった。
+       *
+       * 同じ番号が次の曲を指すので、そのまま置いておけば繰り上がる。
+       * 末尾を抜いたときだけ行き先が無くなるので、手前へ戻す。
+       */
+      const moved = Math.min(index, next.length - 1);
+      set({ queue: next, index: moved, positionMs: 0, loadedDurationMs: 0, orderedQueue: null });
+    }
+
+    // 一緒に聴いている相手にも同じ並びを渡す。片方だけ違うと噛み合わない。
+    const after = get();
+    broadcast?.({ kind: "setQueue", tracks: after.queue, startIndex: after.index });
+  },
+
+  /*
+   * 並びの中で場所を入れ替える。
+   *
+   * 掴んだものが鳴っている曲なら、番号もその行き先へ付いていく。
+   * 跨がれた側は一つぶん寄るので、そのぶんだけ番号を動かす。
+   */
+  moveInQueue: (from, to) => {
+    const { queue, index } = get();
+    if (from === to) return;
+    if (from < 0 || from >= queue.length) return;
+
+    const target = Math.min(Math.max(0, to), queue.length - 1);
+    const next = [...queue];
+    const [moved] = next.splice(from, 1);
+    if (!moved) return;
+    next.splice(target, 0, moved);
+
+    let nextIndex = index;
+    if (from === index) {
+      nextIndex = target;
+    } else if (from < index && target >= index) {
+      nextIndex = index - 1;
+    } else if (from > index && target <= index) {
+      nextIndex = index + 1;
+    }
+
+    // 並べ替えたら、かき混ぜる前の控えは意味を失う。
+    set({ queue: next, index: nextIndex, orderedQueue: null });
+    broadcast?.({ kind: "setQueue", tracks: next, startIndex: nextIndex });
   },
 
   toggle: () => {

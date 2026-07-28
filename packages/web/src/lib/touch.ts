@@ -195,3 +195,107 @@ export function useSwipeToDismiss(
     },
   };
 }
+
+/** 横へ払って取り除くときの匙加減。 */
+interface SwipeAwayOptions {
+  /** これだけ横へ送ったら取り除く。 */
+  thresholdPx?: number;
+  /** これより速く払ったら、距離が足りなくても取り除く (px/ms)。 */
+  velocity?: number;
+}
+
+/**
+ * 横へ払うと取り除く。
+ *
+ * 一覧の中の一行に付ける。指しかない端末には、行に並んだ小さな
+ * ばつ印を狙って押すのが難しい場面がある。払う動きなら狙わなくてよい。
+ *
+ * 縦に送ろうとしただけで消えると恐ろしいので、
+ * はじめの数ピクセルで向きを見定め、横だと分かったときだけ受ける。
+ * 途中でやめれば元の場所へ戻る。
+ */
+export function useSwipeAway(onRemove: () => void, options: SwipeAwayOptions = {}) {
+  const { thresholdPx = 96, velocity = 0.4 } = options;
+  const ref = useRef<HTMLDivElement>(null);
+  const start = useRef<{ x: number; y: number; at: number } | null>(null);
+  const offset = useRef(0);
+  /** 横に払う操作だと見定めたか。まだ分からない間は null。 */
+  const horizontal = useRef<boolean | null>(null);
+
+  const paint = useCallback((x: number, animate: boolean) => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.transition = animate ? "transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s" : "";
+    el.style.transform = x === 0 ? "" : `translateX(${x}px)`;
+    // 送るほど薄れる。離せば消えることが、離す前に分かる。
+    el.style.opacity = x === 0 ? "" : String(Math.max(0.15, 1 - Math.abs(x) / (thresholdPx * 2)));
+  }, [thresholdPx]);
+
+  return {
+    ref,
+    bind: {
+      onTouchStart: (event: React.TouchEvent) => {
+        if (event.touches.length !== 1) return;
+        const touch = event.touches[0]!;
+        start.current = { x: touch.clientX, y: touch.clientY, at: Date.now() };
+        offset.current = 0;
+        horizontal.current = null;
+      },
+
+      onTouchMove: (event: React.TouchEvent) => {
+        const from = start.current;
+        if (!from) return;
+        const touch = event.touches[0];
+        if (!touch) return;
+
+        const dx = touch.clientX - from.x;
+        const dy = touch.clientY - from.y;
+
+        /*
+         * 向きを見定める。
+         *
+         * 縦のほうが勝っていれば、一覧を送ろうとしている。
+         * その場合はこの先いっさい受けない。指を離すまで判定は変えない。
+         */
+        if (horizontal.current === null) {
+          if (Math.abs(dx) < MOVE_TOLERANCE_PX && Math.abs(dy) < MOVE_TOLERANCE_PX) return;
+          horizontal.current = Math.abs(dx) > Math.abs(dy);
+        }
+        if (!horizontal.current) return;
+
+        offset.current = dx;
+        paint(dx, false);
+      },
+
+      onTouchEnd: () => {
+        const from = start.current;
+        start.current = null;
+        if (!from || !horizontal.current) {
+          horizontal.current = null;
+          return;
+        }
+        horizontal.current = null;
+
+        const elapsed = Math.max(1, Date.now() - from.at);
+        const distance = Math.abs(offset.current);
+        const speed = distance / elapsed;
+
+        if (distance > thresholdPx || speed > velocity) {
+          // 取り除くと決めたら、払った向きへ送り出してから消す。
+          paint(offset.current > 0 ? window.innerWidth : -window.innerWidth, true);
+          setTimeout(onRemove, 160);
+          return;
+        }
+        paint(0, true);
+        offset.current = 0;
+      },
+
+      onTouchCancel: () => {
+        start.current = null;
+        horizontal.current = null;
+        paint(0, true);
+        offset.current = 0;
+      },
+    },
+  };
+}

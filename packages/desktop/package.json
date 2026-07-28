@@ -51,6 +51,12 @@
       "**/node_modules/node-datachannel/**",
       "dist/server/*.py"
     ],
+    "extraResources": [
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
+      }
+    ],
     "mac": {
       "icon": "build/icon.png",
       "category": "public.app-category.music",

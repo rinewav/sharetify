@@ -5,6 +5,8 @@ import { app, BrowserWindow, dialog, session, shell } from "electron";
 import { NODE_DEFAULT_PORT } from "@sharetify/shared";
 import { buildMenu } from "./menu.js";
 import { startNodeServer } from "./server/index.js";
+import { applyStartupSettings, startedHidden } from "./startup.js";
+import { createTray, destroyTray } from "./tray.js";
 import { loadWindowState, rememberWindowState } from "./window-state.js";
 
 /**
@@ -32,6 +34,13 @@ const WEB_DEV_URL = process.env.SHARETIFY_WEB_URL ?? "http://localhost:5273";
 let window: BrowserWindow | null = null;
 /** 窓を開き直すときの行き先。立てたあとに決まる。 */
 let windowUrl = WEB_DEV_URL;
+/**
+ * 本当に終わらせにきているか。
+ *
+ * 窓の「閉じる」は、この仕組みでは終わりを意味しない。
+ * 上端の入口から終わらせたときだけ、素通りさせる。
+ */
+let quitting = false;
 
 /**
  * その場所で既に動いているものが、画面まで配れるかどうか。
@@ -119,7 +128,19 @@ function refuseCapturePermissions(): void {
   target.setDevicePermissionHandler(() => false);
 }
 
-async function createWindow(url: string): Promise<void> {
+async function createWindow(url: string, show = true): Promise<void> {
+  /*
+   * 既にあるなら、新しく作らずそれを前に出す。
+   *
+   * 上端の入口から何度押しても窓が増えないようにする。
+   */
+  if (window) {
+    if (window.isMinimized()) window.restore();
+    window.show();
+    window.focus();
+    return;
+  }
+
   // 前に閉じたときの姿で開く。毎回置き直さずに済む。
   const state = await loadWindowState();
 
@@ -154,9 +175,33 @@ async function createWindow(url: string): Promise<void> {
   if (state.maximized) window.maximize();
   rememberWindowState(window);
 
-  window.once("ready-to-show", () => window?.show());
+  /*
+   * 静かに起きる場面では、組み上がっても見せない。
+   *
+   * 窓は作っておく。次に呼ばれたとき、読み込みを待たずにすぐ出せる。
+   */
+  window.once("ready-to-show", () => {
+    if (show) window?.show();
+  });
 
   await window.loadURL(url);
+
+  /*
+   * 閉じるを押されても、裏に隠すだけにする。
+   *
+   * このアプリの役目は、スマホから頼まれた曲を渡すこと。
+   * 窓を閉じたのは「見えなくてよい」であって「もう要らない」ではない。
+   * 消してしまうと、外出先から自分の PC を呼べなくなる。
+   *
+   * 作り直さず取っておくのは、次に呼ばれたとき待たせないため。
+   * 終わらせたいときは上端の入口から。そちらは素通りさせる。
+   */
+  window.on("close", (event) => {
+    if (quitting) return;
+    event.preventDefault();
+    window?.hide();
+  });
+
   window.on("closed", () => {
     window = null;
   });
@@ -201,10 +246,14 @@ app.commandLine.appendSwitch("use-fake-device-for-media-stream");
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
+  /*
+   * 二つ目を開こうとしたら、既にあるものを前に出す。
+   *
+   * 裏で待っているだけで窓が無いこともある。そのときは開き直す。
+   * 何も起きないと、動いていないと思われて何度も押される。
+   */
   app.on("second-instance", () => {
-    if (!window) return;
-    if (window.isMinimized()) window.restore();
-    window.focus();
+    void createWindow(windowUrl);
   });
 
   app.whenReady().then(async () => {
@@ -213,6 +262,12 @@ if (!app.requestSingleInstanceLock()) {
 
     refuseCapturePermissions();
     buildMenu(() => window);
+
+    /*
+     * 名簿の側と、覚えている内容を合わせ直す。
+     * 人の手で外されていることもあるので、起きるたびに見る。
+     */
+    await applyStartupSettings();
 
     try {
       /*
@@ -238,7 +293,22 @@ if (!app.requestSingleInstanceLock()) {
       }
 
       windowUrl = bundled ? `http://127.0.0.1:${port}/` : WEB_DEV_URL;
-      await createWindow(windowUrl);
+
+      /*
+       * 上端の入口を先に出す。
+       *
+       * 静かに起きた場面では、これが唯一の目印になる。
+       * 窓より先に置いておかないと、動いているのに何も見えない時間ができる。
+       */
+      await createTray({
+        onOpen: () => void createWindow(windowUrl),
+        onQuit: () => {
+          quitting = true;
+          app.quit();
+        },
+      });
+
+      await createWindow(windowUrl, !startedHidden());
     } catch (error) {
       /*
        * 立ち上がらなかったことを黙って飲み込まない。
@@ -277,7 +347,17 @@ function describeStartupError(error: unknown, port: number): string {
   return `${message}\n\n閉じてから、もう一度開いてみてください。`;
 }
 
-// ウィンドウを閉じてもサーバーを止めない。スマホ側の再生を切らさないため。
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") return;
+/*
+ * 窓が無くなっても終わらせない。
+ *
+ * 待ち受ける役目は窓と関係なく続く。ここで何もしないことが、
+ * そのまま「裏で動き続ける」という意味になる。
+ * (Electron は、この耳を付けておくと既定の後始末をしない)
+ */
+app.on("window-all-closed", () => undefined);
+
+/** 上端の入口は自分で片付ける。残すと絵だけが居座る。 */
+app.on("before-quit", () => {
+  quitting = true;
+  destroyTray();
 });
