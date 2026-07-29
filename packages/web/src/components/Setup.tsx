@@ -64,6 +64,15 @@ export function Setup({ health, onClose, onOpenPairing }: Props) {
   const desktop = isDesktopApp();
   const steps = desktop ? DESKTOP_STEPS : WEB_STEPS;
   const [at, setAt] = useState(0);
+  /**
+   * 道具が揃ったかどうか。
+   *
+   * ここだけは飛ばせない。揃わないまま先へ進むと、
+   * 検索しても何も出ない画面に放り出されることになる。
+   * 「あとで入れる」を選べるようにしておくと、
+   * その「あとで」が来ないまま壊れているように見えてしまう。
+   */
+  const [toolchainReady, setToolchainReady] = useState(false);
 
   const finish = () => {
     markDone();
@@ -72,12 +81,19 @@ export function Setup({ health, onClose, onOpenPairing }: Props) {
 
   const step = steps[at]!;
   const last = at === steps.length - 1;
+  // 通せんぼしている段。ここを抜けるまでは、進むこともとばすこともできない。
+  const blocked = step.kind === "toolchain" && !toolchainReady;
 
   return (
     <div className="animate-fade fixed inset-0 z-40 flex flex-col bg-base">
       <div className="scroll-area flex min-h-0 flex-1 flex-col items-center justify-center px-6 py-10">
         <div className="w-full max-w-md">
-          <Content step={step} health={health} onOpenPairing={onOpenPairing} />
+          <Content
+            step={step}
+            health={health}
+            onOpenPairing={onOpenPairing}
+            onToolchainReady={setToolchainReady}
+          />
         </div>
       </div>
 
@@ -96,7 +112,7 @@ export function Setup({ health, onClose, onOpenPairing }: Props) {
           </div>
 
           <div className="flex items-center gap-2">
-            {!last && (
+            {!last && !blocked && (
               <button
                 type="button"
                 onClick={finish}
@@ -108,7 +124,9 @@ export function Setup({ health, onClose, onOpenPairing }: Props) {
             <button
               type="button"
               onClick={() => (last ? finish() : setAt(at + 1))}
-              className="press flex items-center gap-2 rounded-full bg-accent px-6 py-2.5 text-sm font-semibold text-accent-ink transition hover:brightness-110"
+              disabled={blocked}
+              title={blocked ? "先に用意してください" : undefined}
+              className="press flex items-center gap-2 rounded-full bg-accent px-6 py-2.5 text-sm font-semibold text-accent-ink transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:brightness-100"
             >
               {last ? "はじめる" : "次へ"}
               {!last && <ArrowRight className="size-4" />}
@@ -150,10 +168,12 @@ function Content({
   step,
   health,
   onOpenPairing,
+  onToolchainReady,
 }: {
   step: Step;
   health: NodeHealth | null;
   onOpenPairing: () => void;
+  onToolchainReady: (ready: boolean) => void;
 }) {
   switch (step.kind) {
     case "welcome":
@@ -167,7 +187,7 @@ function Content({
     case "host":
       return <HostStep health={health} />;
     case "toolchain":
-      return <ToolchainStep />;
+      return <ToolchainStep onReady={onToolchainReady} />;
     case "name":
       return <NameStep />;
   }
@@ -179,8 +199,9 @@ function Content({
  * パソコンに元から入っているものではないので、そのままでは何も探せない。
  * 手で入れてもらうのは酷なので、ここで用意する。
  */
-function ToolchainStep() {
+function ToolchainStep({ onReady }: { onReady: (ready: boolean) => void }) {
   const [status, setStatus] = useState<ToolchainStatus | null>(null);
+  const [checking, setChecking] = useState(true);
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -189,11 +210,20 @@ function ToolchainStep() {
     let cancelled = false;
     void nodeToolchain()
       .then((s) => !cancelled && setStatus(s))
-      .catch(() => !cancelled && setStatus(null));
+      .catch(() => !cancelled && setStatus(null))
+      .finally(() => !cancelled && setChecking(false));
     return () => {
       cancelled = true;
     };
   }, []);
+
+  /*
+   * 揃ったかどうかを外へ伝える。
+   * 進む先を開けてよいかは、この段の中でしか分からない。
+   */
+  useEffect(() => {
+    onReady(status?.ready === true);
+  }, [status?.ready, onReady]);
 
   const install = async () => {
     setBusy(true);
@@ -210,6 +240,19 @@ function ToolchainStep() {
       setBusy(false);
     }
   };
+
+  if (checking) {
+    return (
+      <div className="animate-rise">
+        <Badge>確かめています</Badge>
+        <h1 className="mt-4 text-2xl font-bold tracking-tight">セットアップ</h1>
+        <p className="mt-2 flex items-center gap-2 text-sm text-ink-muted">
+          <Loader2 className="size-4 animate-spin" />
+          必要なものが揃っているか見ています…
+        </p>
+      </div>
+    );
+  }
 
   if (status?.ready) {
     return (
@@ -235,6 +278,7 @@ function ToolchainStep() {
       </p>
       <p className="mt-2 text-xs leading-relaxed text-ink-faint">
         回線速度によりますが、数分かかります。
+        これが無いと曲を探せないので、用意が終わるまで先へは進めません。
       </p>
 
       <div className="mt-5 space-y-2.5 rounded-lg bg-surface p-4">

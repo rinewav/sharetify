@@ -1,11 +1,18 @@
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, dialog, session, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, session, shell } from "electron";
 import { NODE_DEFAULT_PORT } from "@sharetify/shared";
 import { buildMenu } from "./menu.js";
 import { startNodeServer } from "./server/index.js";
 import { applyStartupSettings, startedHidden } from "./startup.js";
+import {
+  attachThumbar,
+  detachThumbar,
+  updateThumbar,
+  type MediaCommand,
+  type PlaybackState,
+} from "./thumbar.js";
 import { createTray, destroyTray } from "./tray.js";
 import { loadWindowState, rememberWindowState } from "./window-state.js";
 
@@ -128,6 +135,36 @@ function refuseCapturePermissions(): void {
   target.setDevicePermissionHandler(() => false);
 }
 
+/**
+ * タスクバーで押されたことを画面に伝える。
+ *
+ * 実際に鳴らしているのは画面の側なので、こちらは合図を運ぶだけ。
+ * 窓が無ければ何も起きない。押せる場所もそのとき出ていない。
+ */
+function sendMediaCommand(command: MediaCommand): void {
+  window?.webContents.send("sharetify:command", command);
+}
+
+/**
+ * 画面からの知らせを受けて、ボタンの見た目を合わせる。
+ *
+ * 流れているのに「再生」の絵のままだと、押しても止まらないように見える。
+ * 受け取る先はこの窓だけに絞る。ほかから同じ知らせが来る筋はない。
+ */
+function listenForPlaybackState(): void {
+  ipcMain.on("sharetify:playback", (event, state: unknown) => {
+    if (!window || event.sender !== window.webContents) return;
+    if (typeof state !== "object" || state === null) return;
+
+    const { playing, controllable, hasTrack } = state as Partial<PlaybackState>;
+    updateThumbar({
+      playing: playing === true,
+      controllable: controllable !== false,
+      hasTrack: hasTrack === true,
+    });
+  });
+}
+
 async function createWindow(url: string, show = true): Promise<void> {
   /*
    * 既にあるなら、新しく作らずそれを前に出す。
@@ -169,8 +206,19 @@ async function createWindow(url: string, show = true): Promise<void> {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      /*
+       * 画面との細い通し口。
+       * タスクバーのボタンを押した合図を運び、鳴っているかどうかを受け取る。
+       */
+      preload: join(HERE, "preload.cjs"),
     },
   });
+
+  /*
+   * タスクバーの絵に指を乗せたときの操作盤を付ける。
+   * (Windows 以外では何も起きない)
+   */
+  attachThumbar(window, sendMediaCommand);
 
   if (state.maximized) window.maximize();
   rememberWindowState(window);
@@ -204,6 +252,7 @@ async function createWindow(url: string, show = true): Promise<void> {
 
   window.on("closed", () => {
     window = null;
+    detachThumbar();
   });
 
   // 外へ出る入口 (歌詞の探し先など) は、既定の閲覧環境に渡す。
@@ -261,6 +310,7 @@ if (!app.requestSingleInstanceLock()) {
     const bundled = existsSync(join(BUNDLED_WEB, "index.html"));
 
     refuseCapturePermissions();
+    listenForPlaybackState();
     buildMenu(() => window);
 
     /*

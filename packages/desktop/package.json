@@ -1,13 +1,13 @@
 {
   "name": "@sharetify/desktop",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "private": true,
   "type": "module",
   "main": "dist/main.js",
   "scripts": {
     "dev": "tsx src/server/standalone.ts",
     "dev:electron": "pnpm build && electron dist/main.js",
-    "build": "pnpm --filter @sharetify/shared build && tsc && cp src/server/*.py dist/server/ 2>/dev/null || true",
+    "build": "pnpm --filter @sharetify/shared build && tsc && (cp src/server/*.py dist/server/ 2>/dev/null || true) && cp src/preload.cjs dist/preload.cjs && node scripts/make-thumbar-icons.mjs",
     "typecheck": "tsc --noEmit",
     "build:app": "pnpm --filter @sharetify/web build && pnpm build && node scripts/bundle-web.mjs",
     "dist": "pnpm build:app && electron-builder --publish never",
@@ -55,6 +55,10 @@
       {
         "from": "build/icon.png",
         "to": "icon.png"
+      },
+      {
+        "from": "build/thumbar",
+        "to": "thumbar"
       }
     ],
     "mac": {
